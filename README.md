@@ -2,7 +2,7 @@
 
 一款离线、以图层为核心的 Windows 图像编辑软件。首版 `0.1.0` 参考 [robbietilton/Compositor](https://github.com/robbietilton/Compositor) 的 Photoshop 式合成工作流，使用 Electron、React、TypeScript 和 Canvas 2D 独立实现 Windows 桌面应用。
 
-产品名使用 **bgssai-compositor**；当前 GitHub 仓库名保留为 `bgssai-compossitor`。
+产品仓与 GitHub 仓库名均为 **bgssai-compositor**。
 
 ## 使用 Windows 版
 
