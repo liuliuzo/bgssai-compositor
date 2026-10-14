@@ -1,0 +1,8 @@
+{
+  "appId": "com.bgssai.compositor",
+  "appName": "BGSSAI Compositor",
+  "webDir": "dist",
+  "android": { "path": "clients/android" },
+  "ios": { "path": "clients/ios" },
+  "server": { "androidScheme": "https" }
+}

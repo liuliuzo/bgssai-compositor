@@ -1,0 +1,178 @@
+name: Controlled signed release
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing vX.Y.Z tag on develop
+        required: true
+      previous_tag:
+        description: Previous signed release tag; blank only for first signing baseline
+        required: false
+permissions:
+  contents: read
+jobs:
+  source:
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+      version: ${{ steps.source.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - id: source
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          node -e 'if(!/^v\d+\.\d+\.\d+$/.test(process.env.RELEASE_TAG))process.exit(1)'
+          git checkout --detach "$RELEASE_TAG"
+          git merge-base --is-ancestor HEAD origin/develop
+          node -e 'const fs=require("fs"),cp=require("child_process");const version=JSON.parse(fs.readFileSync("package.json")).version;if("v"+version!==process.env.RELEASE_TAG)process.exit(1);fs.appendFileSync(process.env.GITHUB_OUTPUT,"sha="+cp.execFileSync("git",["rev-parse","HEAD"],{encoding:"utf8"}).trim()+"\nversion="+version+"\n")'
+  desktop:
+    needs: source
+    environment: compositor-release
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    env:
+      CSC_LINK: ${{ runner.os == 'Windows' && secrets.WINDOWS_CSC_LINK || secrets.MAC_CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ runner.os == 'Windows' && secrets.WINDOWS_CSC_PASSWORD || secrets.MAC_CSC_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+          cache: npm
+      - if: runner.os != 'Linux'
+        run: node -e 'if(!process.env.CSC_LINK||!process.env.CSC_KEY_PASSWORD)throw Error("Signing credentials required")'
+      - run: npm ci
+      - if: runner.os == 'Windows'
+        run: npm run dist:win -- --publish never --config.forceCodeSigning=true
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          foreach ($artifact in Get-ChildItem -LiteralPath release -Filter *.exe) {
+            if ((Get-AuthenticodeSignature -LiteralPath $artifact.FullName).Status -ne 'Valid') { throw 'Invalid Authenticode signature' }
+          }
+      - if: runner.os == 'macOS'
+        run: npm run dist:mac -- --publish never --config.forceCodeSigning=true
+      - if: runner.os == 'Linux'
+        run: npm run dist:linux -- --publish never
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: signed-${{ runner.os }}
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.zip
+            release/*.AppImage
+            release/*.deb
+          if-no-files-found: error
+  android:
+    needs: source
+    environment: compositor-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      COMPOSITOR_ANDROID_KEYSTORE: ${{ runner.temp }}/compositor.jks
+      COMPOSITOR_ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+      COMPOSITOR_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      COMPOSITOR_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '21'
+      - env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: node -e 'const fs=require("fs");if(!process.env.KEYSTORE_BASE64||!process.env.COMPOSITOR_ANDROID_STORE_PASSWORD||!process.env.COMPOSITOR_ANDROID_KEY_ALIAS||!process.env.COMPOSITOR_ANDROID_KEY_PASSWORD)throw Error("Android signing credentials required");fs.writeFileSync(process.env.COMPOSITOR_ANDROID_KEYSTORE,Buffer.from(process.env.KEYSTORE_BASE64,"base64"))'
+      - run: npm ci
+      - run: npm run mobile:sync
+      - run: bash clients/android/gradlew -p clients/android assembleRelease bundleRelease
+      - env:
+          VERSION: ${{ needs.source.outputs.version }}
+        run: |
+          mkdir -p release
+          cp clients/android/app/build/outputs/apk/release/app-release.apk "release/BGSSAI-Compositor-${VERSION}-android-universal.apk"
+          cp clients/android/app/build/outputs/bundle/release/app-release.aab "release/BGSSAI-Compositor-${VERSION}-android-universal.aab"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: signed-Android
+          path: release/*
+          if-no-files-found: error
+  ios:
+    needs: source
+    environment: compositor-release
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run mobile:sync
+      - env:
+          IOS_CERT_BASE64: ${{ secrets.IOS_CERT_BASE64 }}
+          IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
+          IOS_PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
+          IOS_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          VERSION: ${{ needs.source.outputs.version }}
+        run: node scripts/build-ios-release.mjs
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: signed-iOS
+          path: release/*.ipa
+          if-no-files-found: error
+  draft-release:
+    needs: [source, desktop, android, ios]
+    environment: compositor-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          pattern: signed-*
+          path: release
+          merge-multiple: true
+      - env:
+          COMPOSITOR_RELEASE_KEY: ${{ secrets.RELEASE_ED25519_PRIVATE_KEY }}
+          PREVIOUS_TAG: ${{ inputs.previous_tag }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -n "$PREVIOUS_TAG" ]; then
+            node -e 'if(!/^v\d+\.\d+\.\d+$/.test(process.env.PREVIOUS_TAG))process.exit(1)'
+            gh release download "$PREVIOUS_TAG" --pattern release-manifest.json --dir previous-release
+            node scripts/release-manifest.mjs --signed --previous=previous-release/release-manifest.json
+          else
+            node scripts/release-manifest.mjs --signed
+          fi
+          gh release create "$RELEASE_TAG" release/* --draft --verify-tag --title "BGSSAI Compositor $RELEASE_TAG" --notes "Five platform signed packages. Verify release-manifest.json and SHA256SUMS.txt before publishing. Source is on develop."

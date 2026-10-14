@@ -1,6 +1,6 @@
 // Dependency-free rasterization of the app's original vector mark.
 import { deflateSync } from "node:zlib";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, access } from "node:fs/promises";
 
 function crc32(bytes) {
   let crc = 0xffffffff;
@@ -61,7 +61,7 @@ const lines = [
     [197, 165],
   ],
 ];
-function png(size) {
+function png(size, opaque = false) {
   const raw = Buffer.alloc(size * (1 + size * 4));
   for (let y = 0; y < size; y++)
     for (let x = 0; x < size; x++) {
@@ -87,6 +87,12 @@ function png(size) {
       const offset = y * (1 + size * 4) + 1 + x * 4;
       for (let c = 0; c < 4; c++)
         raw[offset + c] = Math.round(channels[c] / samples ** 2);
+      if (opaque) {
+        const coverage = raw[offset + 3] / 255;
+        for (let c = 0; c < 3; c++)
+          raw[offset + c] += Math.round([22, 28, 25][c] * (1 - coverage));
+        raw[offset + 3] = 255;
+      }
     }
   const header = Buffer.alloc(13);
   header.writeUInt32BE(size, 0);
@@ -119,3 +125,37 @@ images.forEach((image, i) => {
 await mkdir("build", { recursive: true });
 await writeFile("build/icon.ico", Buffer.concat([header, ...images]));
 await writeFile("build/icon.png", images.at(-1));
+if (process.argv.includes("--mobile")) {
+  await access("clients/ios/App/App/Assets.xcassets/AppIcon.appiconset");
+  const icon = png(1024, true);
+  await writeFile(
+    "clients/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png",
+    icon,
+  );
+  for (const file of [
+    "splash-2732x2732.png",
+    "splash-2732x2732-1.png",
+    "splash-2732x2732-2.png",
+  ])
+    await writeFile(
+      `clients/ios/App/App/Assets.xcassets/Splash.imageset/${file}`,
+      icon,
+    );
+  for (const [density, size] of [
+    ["mdpi", 48],
+    ["hdpi", 72],
+    ["xhdpi", 96],
+    ["xxhdpi", 144],
+    ["xxxhdpi", 192],
+  ]) {
+    for (const file of [
+      "ic_launcher.png",
+      "ic_launcher_round.png",
+      "ic_launcher_foreground.png",
+    ])
+      await writeFile(
+        `clients/android/app/src/main/res/mipmap-${density}/${file}`,
+        png(size, true),
+      );
+  }
+}

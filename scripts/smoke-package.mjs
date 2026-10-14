@@ -14,8 +14,10 @@ const env = Object.fromEntries(
   ),
 );
 env.APP_ENV = "dev"; // Packaged builds must ignore this and use prod properties.
+const temp = await fs.mkdtemp(join(tmpdir(), "compositor-test-package-"));
+env.COMPOSITOR_TEST = "1";
+env.COMPOSITOR_TEST_DATA = temp;
 const app = await _electron.launch({ executablePath, env, timeout: 30_000 });
-const temp = await fs.mkdtemp(join(tmpdir(), "compositor-package-"));
 const errors = [];
 try {
   const page = await app.firstWindow();
@@ -80,7 +82,7 @@ try {
   await app.close().catch(() => {});
   if (
     dirname(resolve(temp)) !== resolve(tmpdir()) ||
-    !basename(temp).startsWith("compositor-package-")
+    !basename(temp).startsWith("compositor-test-package-")
   )
     throw new Error("Unexpected temporary directory.");
   await fs.rm(temp, { recursive: true, force: true });

@@ -23,6 +23,7 @@ test.beforeEach(async () => {
     ),
   );
   env.COMPOSITOR_TEST = "1";
+  env.COMPOSITOR_TEST_DATA = temp;
   delete env.ELECTRON_RUN_AS_NODE;
   app = await electron.launch({ args: ["."], env, timeout: 30_000 });
   page = await app.firstWindow();
