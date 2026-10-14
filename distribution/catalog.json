@@ -1,0 +1,17 @@
+{
+  "id": "bgssai-compositor",
+  "repository": "liuliuzo/bgssai-compossitor",
+  "version": "0.2.0",
+  "releasePage": "https://github.com/liuliuzo/bgssai-compossitor/releases",
+  "manifestFile": "release-manifest.json",
+  "sourceBranch": "develop",
+  "platforms": {
+    "windows": {"files": ["BGSSAI-Compositor-0.2.0-win-x64-setup.exe", "BGSSAI-Compositor-0.2.0-win-x64-portable.exe"]},
+    "macos": {"files": ["BGSSAI-Compositor-0.2.0-mac-x64.dmg", "BGSSAI-Compositor-0.2.0-mac-arm64.dmg"]},
+    "linux": {"files": ["BGSSAI-Compositor-0.2.0-linux-x64.AppImage", "BGSSAI-Compositor-0.2.0-linux-x64.deb"]},
+    "ios": {"files": ["BGSSAI-Compositor-0.2.0-ios-arm64.ipa"]},
+    "android": {"files": ["BGSSAI-Compositor-0.2.0-android-universal.apk", "BGSSAI-Compositor-0.2.0-android-universal.aab"]}
+  },
+  "consumers": ["official-website", "bgssai-bot", "other-app-download-pages"],
+  "availability": "Use signed Release manifest or local build-manifest as evidence; catalog entries alone do not assert published packages."
+}

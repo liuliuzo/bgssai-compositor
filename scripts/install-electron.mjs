@@ -13,7 +13,7 @@ if (
   process.exit(0);
 const require = createRequire(import.meta.url);
 const root = dirname(require.resolve("electron/package.json"));
-if (process.platform !== "win32") process.exit(0);
+if (process.platform !== "win32") { await import('electron/install.js'); process.exit(0); }
 const { version } = require("electron/package.json");
 const executable =
   process.platform === "win32"

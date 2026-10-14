@@ -13,6 +13,18 @@ contextBridge.exposeInMainWorld("desktop", {
   resetProjectPath: () => ipcRenderer.send("document:reset-path"),
   confirmClose: () => ipcRenderer.send("window:close-confirmed"),
   getInfo: () => ipcRenderer.invoke("app:info"),
+  readRecovery: () => ipcRenderer.invoke("recovery:read"),
+  writeRecovery: (content) => ipcRenderer.invoke("recovery:write", content),
+  clearRecovery: () => ipcRenderer.invoke("recovery:clear"),
+  getConnections: () => ipcRenderer.invoke("connections:config"),
+  requestConnection: (request) =>
+    ipcRenderer.invoke("connections:request", request),
+  openExternal: (url) => ipcRenderer.invoke("connections:external", url),
+  checkUpdate: () => ipcRenderer.invoke("update:check"),
+  stageUpdate: () => ipcRenderer.invoke("update:stage"),
+  installUpdate: () => ipcRenderer.invoke("update:install"),
+  updateResult: () => ipcRenderer.invoke("update:result"),
+  updateHealthy: () => ipcRenderer.invoke("update:healthy"),
   onAction: (callback) => {
     const listener = (_event, action) => callback(action);
     ipcRenderer.on("editor:action", listener);

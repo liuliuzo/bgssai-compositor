@@ -111,8 +111,10 @@ svg {
   flex-direction: column;
   width: 100vw;
   height: 100vh;
-  min-width: 1000px;
+  min-width: 0;
+  height: 100dvh;
 }
+
 .topbar {
   height: 65px;
   flex-shrink: 0;
@@ -1203,4 +1205,43 @@ kbd {
   .properties-scroll {
     max-height: 52%;
   }
+}
+
+.recovery-status { flex-shrink: 0; padding: 4px 12px; min-height: 28px; background: #202924; color: #b4c4b3; }
+.connection-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 15px 0; }
+.grant { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
+.ai-answer { white-space: pre-wrap; }
+.connections { width: 620px; }
+@media (max-width: 1000px) {
+  .topbar { height: auto; min-height: 64px; padding: 8px; gap: 8px; flex-wrap: wrap; }
+  .brand { min-width: 120px; }
+  .header-actions, .header-end { gap: 2px; }
+  .header-end { margin-left: auto; }
+  .optionsbar { overflow-x: auto; flex-shrink: 0; }
+  .optionsbar > * { flex-shrink: 0; }
+  .inspector { width: 250px; }
+}
+@media (max-width: 650px) {
+  .app { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+  .topbar { justify-content: center; }
+  .brand { display: none; }
+  .header-end { margin-left: 0; flex-wrap: wrap; }
+  .topbar button { min-height: 44px; padding: 6px 8px; }
+  .editor-layout { flex-wrap: wrap; }
+  .toolrail { width: 44px; padding: 4px 1px; gap: 0; overflow-y: auto; }
+  .toolrail button { min-height: 38px; width: 40px; }
+  .document-area { flex: 1; min-width: 0; height: 55%; }
+  .toolrail { height: 55%; }
+  .inspector { width: 100%; height: 42%; border-left: 0; overflow: auto; }
+  .properties-scroll { max-height: none; }
+  .canvas-status { gap: 7px; padding: 4px; height: auto; flex-wrap: wrap; }
+  .welcome { padding: 10px; }
+  .welcome-art { display: none; }
+  .welcome h1 { font-size: 24px; }
+  .welcome-copy { font-size: 11px; }
+  .welcome-actions { flex-wrap: wrap; }
+  .welcome-foot { display: none; }
+  .modal, .help-modal, .connections { width: calc(100vw - 20px); padding: 18px; max-height: calc(100dvh - 40px); }
+  .help-grid { grid-template-columns: 1fr; }
+  .recovery-status button { min-height: 40px; }
 }

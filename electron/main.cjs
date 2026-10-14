@@ -8,11 +8,36 @@ const {
   protocol,
   net,
   session,
+  shell,
 } = require("electron");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { randomUUID } = require("node:crypto");
+const { atomicWrite, RecoveryStore } = require("./storage.cjs");
+const { Updater } = require("./updates.cjs");
+const { spawn } = require("node:child_process");
+const os = require("node:os");
+if (process.env.COMPOSITOR_TEST === "1" && process.env.COMPOSITOR_TEST_DATA) {
+  const target = path.resolve(process.env.COMPOSITOR_TEST_DATA);
+  if (
+    path.dirname(target) !== path.resolve(os.tmpdir()) ||
+    !path.basename(target).startsWith("compositor-test-")
+  )
+    throw new Error("Invalid test data directory");
+  app.setPath("userData", target);
+}
+let recoveryStore, updater, config;
+const connectionRoutes = new Set([
+  "auth/begin",
+  "auth/poll",
+  "auth/cancel",
+  "session",
+  "grants",
+  "project",
+  "bot/token",
+  "ai/text",
+]);
 
 const MAX_BYTES = 128 * 1024 * 1024;
 const devURL =
@@ -68,17 +93,157 @@ function safeName(name) {
       .slice(0, 100) || "未命名"
   );
 }
-async function atomicWrite(target, data) {
-  const temp = `${target}.${randomUUID()}.tmp`;
-  try {
-    await fs.writeFile(temp, data, { flag: "wx" });
-    await fs.rename(temp, target);
-  } finally {
-    await fs.unlink(temp).catch(() => {});
-  }
-}
-
 function setupIPC() {
+  handle("recovery:read", () => recoveryStore.read());
+  handle("recovery:write", (content) => recoveryStore.write(content));
+  handle("recovery:clear", () => recoveryStore.clear());
+  handle("connections:config", () =>
+    Object.fromEntries(
+      [
+        "ecosystem.url",
+        "chat.issuer",
+        "support.url",
+        "downloads.url",
+        "bot.url",
+      ].map((key) => [key, config[key] ?? ""]),
+    ),
+  );
+  handle(
+    "connections:request",
+    async ({ route, method, body, token, etag }) => {
+      if (
+        !connectionRoutes.has(route) ||
+        !["GET", "POST", "PUT", "DELETE"].includes(method)
+      )
+        throw new Error("连接请求无效");
+      if (!config["ecosystem.url"]) throw new Error("在线服务尚未开通");
+      const base = new URL(config["ecosystem.url"]);
+      if (
+        base.protocol !== "https:" ||
+        base.pathname !== "/" ||
+        base.username ||
+        base.password ||
+        base.search ||
+        base.hash
+      )
+        throw new Error("在线服务地址无效");
+      const headers = { "Content-Type": "application/json" };
+      if (token) {
+        if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new Error("会话无效");
+        headers.Authorization = `Bearer ${token}`;
+      }
+      if (etag) {
+        if (!/^(empty|[a-f0-9]{64})$/.test(etag))
+          throw new Error("项目版本无效");
+        headers["If-Match"] = etag;
+      }
+      const content = body === undefined ? undefined : JSON.stringify(body);
+      if (content && Buffer.byteLength(content) > MAX_BYTES * 2 + 16384)
+        throw new Error("请求过大");
+      const response = await net.fetch(`${base.origin}/api/${route}`, {
+        method,
+        headers,
+        body: content,
+        redirect: "error",
+        signal: AbortSignal.timeout(30000),
+        credentials: "omit",
+      });
+      if (!response.ok)
+        throw new Error(
+          response.status === 412
+            ? "云端版本已变化，请先下载云端版本，避免覆盖。"
+            : `连接失败（${response.status}）`,
+        );
+      const chunks = [];
+      let size = 0;
+      for await (const chunk of response.body) {
+        size += chunk.length;
+        if (size > MAX_BYTES * 2 + 16384) throw new Error("服务响应过大");
+        chunks.push(chunk);
+      }
+      return JSON.parse(Buffer.concat(chunks));
+    },
+  );
+  handle("connections:external", async (value) => {
+    const url = new URL(value);
+    const origins = ["chat.issuer", "support.url", "downloads.url", "bot.url"]
+      .map((key) => config[key])
+      .filter(Boolean)
+      .map((value) => new URL(value).origin);
+    if (
+      url.protocol !== "https:" ||
+      url.username ||
+      url.password ||
+      !origins.includes(url.origin)
+    )
+      throw new Error("链接不在已配置的服务范围内");
+    await shell.openExternal(url.href);
+  });
+  handle("update:check", () => updater.check());
+  handle("update:stage", () => updater.stage());
+  handle("update:install", async () => {
+    if (dirty) throw new Error("请先保存当前项目再安装更新");
+    if (
+      !updater.staged ||
+      process.platform !== "win32" ||
+      !updater.options.installed
+    )
+      throw new Error("当前安装方式需从下载入口手动安装并保留上一版");
+    const directory = updater.options.directory;
+    const helper = path.join(directory, "update-helper.cjs");
+    await fs.copyFile(path.join(__dirname, "update-helper.cjs"), helper);
+    await fs.copyFile(
+      path.join(__dirname, "update-runner.cjs"),
+      path.join(directory, "update-runner.cjs"),
+    );
+    const receipt = path.join(directory, `health-${randomUUID()}.txt`);
+    const child = spawn(
+      process.execPath,
+      [
+        helper,
+        path.join(directory, "staged.json"),
+        process.execPath,
+        String(process.pid),
+        receipt,
+      ],
+      {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true,
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+      },
+    );
+    await new Promise((resolve, reject) => {
+      child.once("spawn", resolve);
+      child.once("error", reject);
+    });
+    child.unref();
+    closeConfirmed = true;
+    app.quit();
+  });
+  handle("update:result", async () => {
+    try {
+      return JSON.parse(
+        await fs.readFile(
+          path.join(updater.options.directory, "result.json"),
+          "utf8",
+        ),
+      );
+    } catch {
+      return null;
+    }
+  });
+  handle("update:healthy", async () => {
+    const receipt = process.env.COMPOSITOR_UPDATE_RECEIPT;
+    if (
+      receipt &&
+      process.env.COMPOSITOR_UPDATE_VERSION === app.getVersion() &&
+      path.dirname(path.resolve(receipt)) ===
+        path.resolve(updater.options.directory) &&
+      /^health-[a-f0-9-]+\.txt$/.test(path.basename(receipt))
+    )
+      await atomicWrite(receipt, app.getVersion());
+  });
   handle("app:info", async () => {
     const environment =
       !app.isPackaged && process.env.APP_ENV === "dev" ? "dev" : "prod";
@@ -205,7 +370,8 @@ function setupIPC() {
     projectPath = null;
     pendingProjects.clear();
   });
-  listen("window:close-confirmed", () => {
+  listen("window:close-confirmed", async () => {
+    await recoveryStore.clear().catch(() => {});
     closeConfirmed = true;
     window.close();
   });
@@ -222,13 +388,13 @@ function setupMenu() {
       {
         label: "文件",
         submenu: [
-          item("新建…", "new", "Ctrl+N"),
-          item("打开…", "open", "Ctrl+O"),
-          item("导入图像为图层…", "import", "Ctrl+Shift+O"),
+          item("新建…", "new", "CommandOrControl+N"),
+          item("打开…", "open", "CommandOrControl+O"),
+          item("导入图像为图层…", "import", "CommandOrControl+Shift+O"),
           { type: "separator" },
-          item("保存项目", "save", "Ctrl+S"),
-          item("项目另存为…", "save-as", "Ctrl+Shift+S"),
-          item("导出图像…", "export", "Ctrl+Shift+E"),
+          item("保存项目", "save", "CommandOrControl+S"),
+          item("项目另存为…", "save-as", "CommandOrControl+Shift+S"),
+          item("导出图像…", "export", "CommandOrControl+Shift+E"),
           { type: "separator" },
           { role: "quit", label: "退出" },
         ],
@@ -236,31 +402,77 @@ function setupMenu() {
       {
         label: "编辑",
         submenu: [
-          item("撤销", "undo", "Ctrl+Z"),
-          item("重做", "redo", "Ctrl+Shift+Z"),
+          item("撤销", "undo", "CommandOrControl+Z"),
+          item("重做", "redo", "CommandOrControl+Shift+Z"),
           { type: "separator" },
           { role: "cut", label: "剪切文本" },
           { role: "copy", label: "复制文本" },
           { role: "paste", label: "粘贴" },
-          item("复制图层", "duplicate", "Ctrl+J"),
-          item("取消选区", "deselect", "Ctrl+D"),
+          item("复制图层", "duplicate", "CommandOrControl+J"),
+          item("取消选区", "deselect", "CommandOrControl+D"),
         ],
       },
       {
         label: "视图",
         submenu: [
-          item("适合窗口", "fit", "Ctrl+0"),
-          item("实际像素", "actual-size", "Ctrl+1"),
+          item("适合窗口", "fit", "CommandOrControl+0"),
+          item("实际像素", "actual-size", "CommandOrControl+1"),
           { role: "togglefullscreen", label: "全屏" },
           ...(!app.isPackaged ? [{ role: "toggleDevTools" }] : []),
         ],
       },
-      { label: "帮助", submenu: [item("快捷键与使用说明", "help")] },
+      {
+        label: "帮助",
+        submenu: [
+          item("快捷键与使用说明", "help"),
+          item("账户与连接", "connections"),
+          item("检查更新", "updates"),
+        ],
+      },
     ]),
   );
 }
 
 app.whenReady().then(async () => {
+  const environment =
+    !app.isPackaged && process.env.APP_ENV === "dev" ? "dev" : "prod";
+  const properties = await fs.readFile(
+    path.join(__dirname, `../config/application-${environment}.properties`),
+    "utf8",
+  );
+  config = Object.fromEntries(
+    properties
+      .split(/\r?\n/)
+      .filter((line) => line && !line.startsWith("#"))
+      .map((line) => {
+        const i = line.indexOf("=");
+        return [line.slice(0, i), line.slice(i + 1)];
+      }),
+  );
+  recoveryStore = new RecoveryStore(
+    path.join(app.getPath("userData"), "recovery"),
+  );
+  await recoveryStore.init();
+  const updateDirectory = path.join(app.getPath("userData"), "updates");
+  await fs.mkdir(updateDirectory, { recursive: true, mode: 0o700 });
+  for (const name of await fs.readdir(updateDirectory))
+    if (
+      /^BGSSAI-Compositor-[A-Za-z0-9._-]+\.download$/.test(name) ||
+      /^staged\.json\.[a-f0-9-]+\.tmp$/.test(name)
+    )
+      await fs.unlink(path.join(updateDirectory, name)).catch(() => {});
+  const publicKey = await fs
+    .readFile(path.join(__dirname, "../config/update-public-key.pem"), "utf8")
+    .catch(() => null);
+  updater = new Updater({
+    feed: config["update.feed"],
+    publicKey,
+    version: app.getVersion(),
+    platform: process.platform,
+    arch: process.arch,
+    directory: updateDirectory,
+    installed: app.isPackaged && !process.env.PORTABLE_EXECUTABLE_FILE,
+  });
   protocol.handle("compositor", async (request) => {
     const url = new URL(request.url);
     const dist = path.resolve(__dirname, "../dist");
@@ -282,7 +494,7 @@ app.whenReady().then(async () => {
   window = new BrowserWindow({
     width: 1440,
     height: 980,
-    minWidth: 1050,
+    minWidth: 720,
     minHeight: 720,
     backgroundColor: "#161819",
     title: "BGSSAI Compositor",

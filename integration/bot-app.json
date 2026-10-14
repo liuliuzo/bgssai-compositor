@@ -1,0 +1,12 @@
+{
+  "id": "bgssai-compositor",
+  "name": "BGSSAI Compositor",
+  "format": "bgcomp-v1",
+  "downloadCatalog": "distribution/catalog.json",
+  "authentication": "user-generated one-hour Bot bearer token; revoked by disabling bot or sync grant, logout, or session expiration",
+  "actions": {
+    "readProject": {"method": "GET", "path": "/api/bot/project"},
+    "renameProject": {"method": "POST", "path": "/api/bot/operate", "body": {"action": "rename", "name": "<name>"}, "ifMatch": "etag returned by readProject"},
+    "editLayer": {"method": "POST", "path": "/api/bot/operate", "body": {"action": "layer", "id": "<layerId>", "visible": true, "opacity": 0.8}, "ifMatch": "etag returned by readProject"}
+  }
+}

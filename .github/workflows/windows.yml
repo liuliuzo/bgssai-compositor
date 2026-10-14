@@ -30,12 +30,7 @@ jobs:
       - run: npm run dist:win -- --publish never
       - run: npm run test:package
       - run: npm run test:portable
-      - name: Generate checksums
-        shell: pwsh
-        run: |
-          Get-ChildItem -LiteralPath release -Filter *.exe | Get-FileHash -Algorithm SHA256 | ForEach-Object {
-            "$($_.Hash.ToLowerInvariant())  $(Split-Path -Path $_.Path -Leaf)"
-          } | Set-Content -LiteralPath release/SHA256SUMS.txt -Encoding utf8
+      - run: npm run release:manifest
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: BGSSAI-Compositor-Windows-x64
@@ -43,6 +38,7 @@ jobs:
             release/*.exe
             release/*.blockmap
             release/SHA256SUMS.txt
+            release/build-manifest.json
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7

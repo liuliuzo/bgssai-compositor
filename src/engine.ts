@@ -7,6 +7,7 @@ import {
   MAX_LAYERS,
   MAX_PROJECT_BYTES,
   parseProject,
+  pngDimensions,
   type Adjustments,
   type Blend,
   type Geometry,
@@ -15,6 +16,14 @@ import {
   type ProjectData,
   type TextContent,
 } from "./project";
+import {
+  checkMemory,
+  estimateMemory,
+  DEFAULT_MEMORY_BYTES,
+  HISTORY_BYTES,
+} from "./memory";
+import { imageDimensions } from "./image-header";
+import { adjustPixels, blurPixels } from "./filters";
 
 export type Tool =
   | "move"
@@ -81,7 +90,12 @@ export function corners(layer: Layer): Point[] {
     { x: 0, y: height },
   ].map((p) => localToWorld(p, geometry(layer)));
 }
-async function decode(data: string): Promise<HTMLCanvasElement> {
+async function decode(
+  data: string,
+  beforeAllocate?: (width: number, height: number) => void,
+): Promise<HTMLCanvasElement> {
+  const dimensions = imageDimensions(data);
+  beforeAllocate?.(dimensions.width, dimensions.height);
   const image = new Image();
   image.src = data;
   try {
@@ -90,6 +104,11 @@ async function decode(data: string): Promise<HTMLCanvasElement> {
     throw new Error("无法读取图像，请使用有效的 PNG、JPEG、WebP 或 BMP 文件。");
   }
   checkDimensions(image.naturalWidth, image.naturalHeight);
+  if (
+    image.naturalWidth !== dimensions.width ||
+    image.naturalHeight !== dimensions.height
+  )
+    throw new Error("图像实际尺寸与文件头不一致");
   const canvas = makeCanvas(image.naturalWidth, image.naturalHeight);
   ctx(canvas).drawImage(image, 0, 0);
   return canvas;
@@ -113,6 +132,78 @@ export class Editor {
   private savedJSON = "";
   private pending = false;
   busy = false;
+  memoryBudget = DEFAULT_MEMORY_BYTES;
+  get snapshot() {
+    return this.pending
+      ? null
+      : (this.history[this.historyIndex]?.json ?? null);
+  }
+  get historyBytes() {
+    return this.history.reduce(
+      (total, entry) => total + entry.json.length * 2,
+      0,
+    );
+  }
+  private checkAdoption(data: ProjectData, json: string) {
+    const pixels = data.layers.reduce((sum, layer) => {
+      const size = pngDimensions(layer.image);
+      return sum + size.width * size.height;
+    }, 0);
+    const softwareFilters = !("filter" in ctx(this.layers[0].canvas));
+    const filterPixels = softwareFilters
+      ? Math.max(
+          ...data.layers.map((layer) => {
+            const adj = layer.adjustments;
+            if (
+              !adj.brightness &&
+              !adj.contrast &&
+              !adj.saturation &&
+              !adj.blur
+            )
+              return 0;
+            const size = pngDimensions(layer.image),
+              padding = Math.ceil(adj.blur) * 6;
+            return (size.width + padding) * (size.height + padding) * 4;
+          }),
+        )
+      : 0;
+    checkMemory(
+      estimateMemory(
+        pixels + this.pixelBudget + filterPixels,
+        data.width * data.height + this.width * this.height,
+        json.length * 2,
+        this.historyBytes,
+      ),
+      this.memoryBudget,
+    );
+  }
+  checkLayerAllocation(width: number, height: number, replacing?: Layer) {
+    checkDimensions(width, height);
+    const pixels =
+      this.pixelBudget +
+      width * height -
+      (replacing ? replacing.canvas.width * replacing.canvas.height : 0);
+    if (
+      (!replacing && this.layers.length >= MAX_LAYERS) ||
+      pixels > MAX_LAYER_PIXELS
+    )
+      throw new Error(
+        "图层上限为 40 个，总像素上限为 4800 万。请删除或合并一些图层。",
+      );
+    checkMemory(
+      estimateMemory(
+        this.pixelBudget + width * height,
+        this.width * this.height,
+        (this.snapshot?.length ?? 0) * 2,
+        this.historyBytes,
+      ),
+      this.memoryBudget,
+    );
+  }
+  allocateLayer(width: number, height: number, replacing?: Layer) {
+    this.checkLayerAllocation(width, height, replacing);
+    return makeCanvas(width, height);
+  }
 
   constructor() {
     this.newDocument("未命名", 1600, 1000, "transparent");
@@ -168,6 +259,15 @@ export class Editor {
     this.notify();
   }
   serialize(): string {
+    checkMemory(
+      estimateMemory(
+        this.pixelBudget,
+        this.width * this.height,
+        (this.snapshot?.length ?? 0) * 2,
+        this.historyBytes,
+      ),
+      this.memoryBudget,
+    );
     const data: ProjectData = {
       format: "bgssai-compositor",
       version: 1,
@@ -199,7 +299,8 @@ export class Editor {
     );
     while (
       this.history.length > 1 &&
-      (this.history.length > 30 || bytes > 96 * 1024 * 1024)
+      (this.history.length > 30 ||
+        bytes > Math.min(HISTORY_BYTES, this.memoryBudget / 8))
     ) {
       bytes -= this.history.shift()!.json.length * 2;
     }
@@ -220,6 +321,15 @@ export class Editor {
   }
   newDocument(name: string, width: number, height: number, background: string) {
     checkDimensions(width, height);
+    checkMemory(
+      estimateMemory(
+        this.pixelBudget + width * height,
+        this.width * this.height + width * height,
+        0,
+        this.historyBytes,
+      ),
+      this.memoryBudget,
+    );
     const canvas = makeCanvas(width, height);
     if (background !== "transparent") {
       const context = ctx(canvas);
@@ -238,6 +348,7 @@ export class Editor {
   }
   async load(json: string, saved = true) {
     const data = parseProject(json);
+    this.checkAdoption(data, json);
     const decoded: Layer[] = [];
     // Decode every layer before replacing the current document; failed opens are atomic.
     for (const { image, ...layer } of data.layers)
@@ -261,6 +372,7 @@ export class Editor {
     this.notify();
     try {
       const data = parseProject(this.history[index].json);
+      this.checkAdoption(data, this.history[index].json);
       const layers: Layer[] = [];
       for (const { image, ...layer } of data.layers)
         layers.push({ ...layer, canvas: await decode(image) });
@@ -278,7 +390,17 @@ export class Editor {
     }
   }
   async openImage(data: string, name: string) {
-    const canvas = await decode(data);
+    const canvas = await decode(data, (width, height) =>
+      checkMemory(
+        estimateMemory(
+          this.pixelBudget + width * height,
+          this.width * this.height + width * height,
+          data.length * 2,
+          this.historyBytes,
+        ),
+        this.memoryBudget,
+      ),
+    );
     this.name = name.replace(/\.[^.]+$/, "").slice(0, 200);
     this.width = canvas.width;
     this.height = canvas.height;
@@ -288,7 +410,9 @@ export class Editor {
     this.resetHistory("打开图像", false);
   }
   async importImage(data: string, name: string) {
-    const canvas = await decode(data);
+    const canvas = await decode(data, (width, height) =>
+      this.checkLayerAllocation(width, height),
+    );
     this.assertBudget(canvas);
     const layer = layerFromCanvas(canvas, name.slice(0, 200));
     const scale = Math.min(
@@ -305,7 +429,7 @@ export class Editor {
     this.commit("导入图像");
   }
   addBlank() {
-    const canvas = makeCanvas(this.width, this.height);
+    const canvas = this.allocateLayer(this.width, this.height);
     this.assertBudget(canvas);
     const layer = layerFromCanvas(canvas, `图层 ${this.layers.length + 1}`);
     this.layers.push(layer);
@@ -326,6 +450,21 @@ export class Editor {
       !Object.keys(patch).every((key) => ["locked", "visible"].includes(key))
     )
       throw new Error("请先解锁图层。");
+    if (patch.adjustments && !("filter" in ctx(this.selected.canvas))) {
+      const padding = Math.ceil(patch.adjustments.blur) * 6;
+      checkMemory(
+        estimateMemory(
+          this.pixelBudget +
+            (this.selected.canvas.width + padding) *
+              (this.selected.canvas.height + padding) *
+              4,
+          this.width * this.height,
+          (this.snapshot?.length ?? 0) * 2,
+          this.historyBytes,
+        ),
+        this.memoryBudget,
+      );
+    }
     Object.assign(this.selected, patch);
     this.change();
     if (!live) this.commit(label);
@@ -339,7 +478,10 @@ export class Editor {
   }
   duplicate() {
     const original = this.selected;
-    const canvas = makeCanvas(original.canvas.width, original.canvas.height);
+    const canvas = this.allocateLayer(
+      original.canvas.width,
+      original.canvas.height,
+    );
     this.assertBudget(canvas);
     ctx(canvas).drawImage(original.canvas, 0, 0);
     const clone: Layer = {
@@ -393,7 +535,33 @@ export class Editor {
     context.globalAlpha = layer.opacity;
     context.globalCompositeOperation = layer.blend as GlobalCompositeOperation;
     const adj = layer.adjustments;
-    context.filter = `brightness(${100 + adj.brightness}%) contrast(${100 + adj.contrast}%) saturate(${100 + adj.saturation}%) blur(${adj.blur}px)`;
+    let source = layer.canvas,
+      padding = 0;
+    if ("filter" in context)
+      context.filter = `brightness(${100 + adj.brightness}%) contrast(${100 + adj.contrast}%) saturate(${100 + adj.saturation}%) blur(${adj.blur}px)`;
+    else if (adj.brightness || adj.contrast || adj.saturation || adj.blur) {
+      padding = Math.ceil(adj.blur) * 3;
+      const width = layer.canvas.width + padding * 2,
+        height = layer.canvas.height + padding * 2;
+      checkMemory(
+        estimateMemory(
+          this.pixelBudget + width * height * 4,
+          this.width * this.height,
+          (this.snapshot?.length ?? 0) * 2,
+          this.historyBytes,
+        ),
+        this.memoryBudget,
+      );
+      source = document.createElement("canvas");
+      source.width = width;
+      source.height = height;
+      const filtered = ctx(source);
+      filtered.drawImage(layer.canvas, padding, padding);
+      const pixels = filtered.getImageData(0, 0, width, height);
+      adjustPixels(pixels.data, adj);
+      blurPixels(pixels.data, width, height, adj.blur);
+      filtered.putImageData(pixels, 0, 0);
+    }
     context.translate(
       layer.x + (layer.canvas.width * layer.scaleX) / 2,
       layer.y + (layer.canvas.height * layer.scaleY) / 2,
@@ -404,9 +572,9 @@ export class Editor {
       layer.scaleY * (layer.flipY ? -1 : 1),
     );
     context.drawImage(
-      layer.canvas,
-      -layer.canvas.width / 2,
-      -layer.canvas.height / 2,
+      source,
+      -layer.canvas.width / 2 - padding,
+      -layer.canvas.height / 2 - padding,
     );
     context.restore();
   }
@@ -418,6 +586,15 @@ export class Editor {
     this.layers.forEach((layer) => this.drawLayer(context, layer));
   }
   exportImage(format: "png" | "jpeg", quality: number, background: string) {
+    checkMemory(
+      estimateMemory(
+        this.pixelBudget + this.width * this.height,
+        this.width * this.height,
+        (this.snapshot?.length ?? 0) * 2,
+        this.historyBytes,
+      ),
+      this.memoryBudget,
+    );
     const canvas = makeCanvas(this.width, this.height);
     const context = ctx(canvas);
     if (format === "jpeg") {
@@ -493,7 +670,7 @@ export class Editor {
   }
   shape(selection: Selection, ellipse: boolean) {
     if (selection.width < 1 || selection.height < 1) return;
-    const canvas = makeCanvas(
+    const canvas = this.allocateLayer(
       Math.max(1, Math.ceil(selection.width)),
       Math.max(1, Math.ceil(selection.height)),
     );
@@ -520,7 +697,7 @@ export class Editor {
     this.selectedId = layer.id;
     this.commit(ellipse ? "绘制椭圆" : "绘制矩形");
   }
-  private textCanvas(text: TextContent): HTMLCanvasElement {
+  private textCanvas(text: TextContent, replacing?: Layer): HTMLCanvasElement {
     const measure = ctx(makeCanvas(1, 1));
     measure.font = `${text.bold ? "700" : "400"} ${text.size}px "${text.font}"`;
     const lines = text.value.split("\n");
@@ -536,7 +713,7 @@ export class Editor {
       1,
       Math.ceil(lines.length * text.size * 1.3 + padding * 2),
     );
-    const canvas = makeCanvas(width, height);
+    const canvas = this.allocateLayer(width, height, replacing);
     const context = ctx(canvas);
     context.font = measure.font;
     context.textBaseline = "top";
@@ -571,7 +748,7 @@ export class Editor {
     if (!layer.text) return;
     const text = { ...layer.text, ...patch };
     if (text.value.length > 10000) throw new Error("文字最多为 10000 字符。");
-    const canvas = this.textCanvas(text);
+    const canvas = this.textCanvas(text, layer);
     this.assertBudget(canvas, layer);
     layer.canvas = canvas;
     layer.text = text;
@@ -632,7 +809,6 @@ export class Editor {
     // Backdrop-dependent blending cannot be flattened into an independent layer faithfully.
     if (bottom.blend !== "source-over" || top.blend !== "source-over")
       throw new Error("两个图层都须使用“正常”混合模式，才能向下合并。");
-    const canvas = makeCanvas(this.width, this.height);
     if (
       this.pixelBudget -
         top.canvas.width * top.canvas.height -
@@ -641,6 +817,16 @@ export class Editor {
       MAX_LAYER_PIXELS
     )
       throw new Error("合并会超过图层像素上限。");
+    checkMemory(
+      estimateMemory(
+        this.pixelBudget + this.width * this.height,
+        this.width * this.height,
+        (this.snapshot?.length ?? 0) * 2,
+        this.historyBytes,
+      ),
+      this.memoryBudget,
+    );
+    const canvas = makeCanvas(this.width, this.height);
     const context = ctx(canvas);
     this.drawLayer(context, bottom);
     this.drawLayer(context, top);

@@ -64,8 +64,14 @@ import {
   type TextContent,
 } from "./project";
 import type { OpenedFile } from "./desktop";
+import { recovery, type Recovery } from "./recovery";
+import { native, platformName, saveNative } from "./platform";
+import { Connections } from "./Connections";
+import { Updates } from "./Updates";
+import { parseProject } from "./project";
 
 const editor = new Editor();
+if (native) editor.memoryBudget = 320 * 1024 * 1024;
 const TOOLS: { id: Tool; name: string; key: string; icon: typeof Brush }[] = [
   { id: "move", name: "移动", key: "V", icon: MousePointer2 },
   { id: "select", name: "矩形选区", key: "M", icon: Scan },
@@ -77,7 +83,7 @@ const TOOLS: { id: Tool; name: string; key: string; icon: typeof Brush }[] = [
   { id: "eyedropper", name: "吸管", key: "I", icon: Pipette },
   { id: "hand", name: "抓手", key: "H", icon: Hand },
 ];
-type Modal = "new" | "export" | "help" | null;
+type Modal = "new" | "export" | "help" | "connections" | "updates" | null;
 type Gesture = {
   type: Tool | "scale";
   start: Point;
@@ -309,6 +315,10 @@ export function App() {
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [draggingFile, setDraggingFile] = useState(false);
   const [version, setVersion] = useState("0.1.0");
+  const [recoveryOffer, setRecoveryOffer] = useState<Recovery | null>(null);
+  const [recoveryReady, setRecoveryReady] = useState(false);
+  const [autosaveStatus, setAutosaveStatus] = useState("自动恢复准备中");
+  const lastRecovery = useRef<string | null>(null);
   const stage = useRef<HTMLDivElement>(null);
   const artboard = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -384,10 +394,14 @@ export function App() {
         editor.markSaved(json);
         message(`项目已保存：${result.name}`);
       } else {
-        download(`${editor.name}.bgcomp`, json, "application/json");
+        if (native) await saveNative(editor.name, json, "bgcomp");
+        else download(`${editor.name}.bgcomp`, json, "application/json");
         editor.markSaved(json);
         message("项目已下载");
       }
+      await recovery.clear();
+      lastRecovery.current = null;
+      setAutosaveStatus("项目已保存");
       return true;
     },
     [message],
@@ -421,6 +435,8 @@ export function App() {
         await editor.openImage(file.data, file.name);
         window.desktop?.resetProjectPath();
       }
+      await recovery.clear();
+      lastRecovery.current = null;
       showDocument();
       message(`已打开 ${file.name}`);
     },
@@ -440,6 +456,13 @@ export function App() {
   );
   const action = useCallback(
     (name: string) => {
+      if (
+        !recoveryReady ||
+        (recoveryOffer && !["help", "connections", "updates"].includes(name))
+      ) {
+        message("请先恢复或丢弃上次的自动恢复项目");
+        return;
+      }
       void run(async () => {
         switch (name) {
           case "new":
@@ -482,12 +505,20 @@ export function App() {
           case "help":
             setModal("help");
             break;
+          case "connections":
+            setModal("connections");
+            break;
+          case "updates":
+            setModal("updates");
+            break;
           case "close":
             if (await guard()) window.desktop?.confirmClose();
             break;
           case "demo":
             if (await guard()) {
               editor.demo();
+              await recovery.clear();
+              lastRecovery.current = null;
               window.desktop?.resetProjectPath();
               showDocument();
             }
@@ -503,8 +534,104 @@ export function App() {
         }
       });
     },
-    [chooseFile, fit, guard, message, run, save, showDocument],
+    [
+      chooseFile,
+      fit,
+      guard,
+      message,
+      run,
+      save,
+      showDocument,
+      recoveryReady,
+      recoveryOffer,
+    ],
   );
+
+  useEffect(() => {
+    let active = true;
+    void recovery
+      .read()
+      .then((value) => {
+        if (value) parseProject(value.content);
+        if (active) {
+          setRecoveryOffer(value);
+          setRecoveryReady(true);
+          setAutosaveStatus(value ? "发现可恢复项目" : "自动恢复已就绪");
+        }
+      })
+      .catch((error) => {
+        if (active) {
+          setRecoveryReady(true);
+          setAutosaveStatus("恢复读取失败，请手动保存");
+          message(error.message, true);
+        }
+      });
+    void window.desktop
+      ?.updateHealthy()
+      .catch((error) => message(error.message, true));
+    void window.desktop
+      ?.updateResult()
+      .then((result) => {
+        if (result?.status === "rolled-back" || result?.status === "failed")
+          message(
+            `更新${result.status === "rolled-back" ? "已回滚" : "失败"}：${result.reason}`,
+            true,
+          );
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [message]);
+  useEffect(() => {
+    if (!recoveryReady || recoveryOffer || welcome) return;
+    let active = true;
+    const flush = async () => {
+      const snapshot = editor.snapshot;
+      if (
+        !editor.dirty ||
+        !snapshot ||
+        snapshot === lastRecovery.current ||
+        editor.busy ||
+        actionLock.current ||
+        gesture.current
+      )
+        return;
+      try {
+        const at = await recovery.write(snapshot);
+        if (active) {
+          lastRecovery.current = snapshot;
+          setAutosaveStatus(
+            `已自动恢复保存 ${new Date(at).toLocaleTimeString()}`,
+          );
+        }
+      } catch (error) {
+        if (active) {
+          setAutosaveStatus("自动恢复失败，请手动保存");
+          message((error as Error).message, true);
+        }
+      }
+    };
+    let timer: ReturnType<typeof setTimeout>;
+    const schedule = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => void flush(), 1500);
+    };
+    schedule();
+    const unsubscribe = editor.subscribe(schedule);
+    const interval = setInterval(() => void flush(), 10000);
+    const onHide = () => {
+      if (document.visibilityState === "hidden") void flush();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      active = false;
+      unsubscribe();
+      clearTimeout(timer);
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onHide);
+    };
+  }, [recoveryReady, recoveryOffer, welcome, message]);
 
   useEffect(() => {
     window.desktop?.setDirty(editor.dirty);
@@ -929,7 +1056,7 @@ export function App() {
         <div className="brand">
           <Layers3 size={23} />
           <span>
-            compositor<small>BGSSAI · WINDOWS</small>
+            compositor<small>BGSSAI · {platformName}</small>
           </span>
         </div>
         <div className="header-actions">
@@ -958,6 +1085,12 @@ export function App() {
           </Button>
         </div>
         <div className="header-end">
+          <Button title="账户与连接" onClick={() => action("connections")}>
+            连接
+          </Button>
+          <Button title="检查更新" onClick={() => action("updates")}>
+            更新
+          </Button>
           <Button title="使用说明" onClick={() => action("help")}>
             <HelpCircle size={17} />
           </Button>
@@ -975,6 +1108,43 @@ export function App() {
           </Button>
         </div>
       </header>
+      <div className="recovery-status" role="status">
+        {autosaveStatus}
+        {recoveryOffer && (
+          <>
+            <span> · {new Date(recoveryOffer.writtenAt).toLocaleString()}</span>
+            <Button
+              disabled={working}
+              onClick={() =>
+                void run(async () => {
+                  if (!(await guard())) return;
+                  await editor.load(recoveryOffer.content, false);
+                  window.desktop?.resetProjectPath();
+                  lastRecovery.current = recoveryOffer.content;
+                  setRecoveryOffer(null);
+                  setAutosaveStatus("项目已恢复，请保存到正式项目文件");
+                  showDocument();
+                })
+              }
+            >
+              恢复上次项目
+            </Button>
+            <Button
+              disabled={working}
+              onClick={() =>
+                void run(async () => {
+                  await recovery.clear();
+                  setRecoveryOffer(null);
+                  lastRecovery.current = null;
+                  setAutosaveStatus("自动恢复已就绪");
+                })
+              }
+            >
+              丢弃恢复项目
+            </Button>
+          </>
+        )}
+      </div>
       <div className="optionsbar">
         <span className="tool-name">
           <currentTool.icon size={15} />
@@ -1714,7 +1884,29 @@ export function App() {
           </Button>
         </div>
       )}
-      {(modal || confirm) && (
+      {modal === "connections" && (
+        <Connections
+          editor={editor}
+          close={() => setModal(null)}
+          message={message}
+          adopt={async (content) => {
+            if (!(await guard())) return false;
+            await editor.load(content, false);
+            window.desktop?.resetProjectPath();
+            await recovery.clear();
+            lastRecovery.current = null;
+            setModal(null);
+            showDocument();
+            message("已下载云端项目，请保存到本地");
+            return true;
+          }}
+        />
+      )}
+      {modal === "updates" && (
+        <Updates close={() => setModal(null)} message={message} />
+      )}
+      {((modal && modal !== "connections" && modal !== "updates") ||
+        confirm) && (
         <div className="modal-backdrop">
           <section
             className={`modal ${modal === "help" ? "help-modal" : ""}`}
@@ -1851,6 +2043,8 @@ export function App() {
                           newHeight,
                           background,
                         );
+                        await recovery.clear();
+                        lastRecovery.current = null;
                         window.desktop?.resetProjectPath();
                         setModal(null);
                         showDocument();
@@ -1935,7 +2129,9 @@ export function App() {
                             format,
                           );
                           if (!result) return;
-                        } else
+                        } else if (native)
+                          await saveNative(editor.name, data, format);
+                        else
                           download(
                             `${editor.name}.${format === "jpeg" ? "jpg" : "png"}`,
                             data,
@@ -1954,7 +2150,7 @@ export function App() {
             ) : (
               <>
                 <p className="modal-subtitle">
-                  BGSSAI Compositor {version} · Windows 首版
+                  BGSSAI Compositor {version} · {platformName}
                 </p>
                 <div className="help-grid">
                   <div>
