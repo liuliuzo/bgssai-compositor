@@ -124,7 +124,8 @@ images.forEach((image, i) => {
 });
 await mkdir("build", { recursive: true });
 await writeFile("build/icon.ico", Buffer.concat([header, ...images]));
-await writeFile("build/icon.png", images.at(-1));
+// macOS requires at least 512px; keep the same mark and opaque background.
+await writeFile("build/icon.png", png(1024, true));
 if (process.argv.includes("--mobile")) {
   await access("clients/ios/App/App/Assets.xcassets/AppIcon.appiconset");
   const icon = png(1024, true);

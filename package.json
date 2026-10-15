@@ -4,7 +4,7 @@
   "description": "Offline layer editor for Windows, macOS, Linux, iOS and Android",
   "private": true,
   "type": "module",
-  "author": "BGSSAI",
+  "author": "BGSSAI <hello@bgssai.com>",
   "license": "MIT",
   "main": "electron/main.cjs",
   "scripts": {
@@ -114,6 +114,7 @@
         "zip"
       ],
       "category": "public.app-category.graphics-design",
+      "icon": "build/icon.png",
       "artifactName": "BGSSAI-Compositor-${version}-mac-${arch}.${ext}",
       "hardenedRuntime": true,
       "notarize": true
