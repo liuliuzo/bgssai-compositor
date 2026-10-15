@@ -42,6 +42,27 @@ test.afterEach(async () => {
   expect(path.basename(directory)).toMatch(/^compositor-test-/);
   await fs.rm(directory, { recursive: true, force: true });
 });
+test("document actions wait for recovery initialization before accepting clicks", async () => {
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler("recovery:read");
+    ipcMain.handle("recovery:read", () => new Promise((resolve) => {
+      (globalThis as unknown as { finishRecovery: () => void }).finishRecovery = () => resolve(null);
+    }));
+  });
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "让灵感，自由成像。" })).toBeVisible();
+  for (const name of ["新建", "打开", "创建画布", "打开图像或项目"]) {
+    await expect(page.getByRole("button", { name, exact: true })).toBeDisabled();
+  }
+  await expect(page.getByRole("button", { name: /打开示例/ })).toBeDisabled();
+  await expect(page.locator(".app")).toHaveAttribute("aria-busy", "true");
+  await expect.poll(() => app.evaluate(() => typeof (globalThis as unknown as { finishRecovery?: () => void }).finishRecovery)).toBe("function");
+  await app.evaluate(() => (globalThis as unknown as { finishRecovery: () => void }).finishRecovery());
+  await expect(page.getByRole("button", { name: "新建", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "打开", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "新建", exact: true }).click();
+  await expect(page.getByLabel("文档名称")).toBeVisible();
+});
 test("force exit recovers editable project and saving clears recovery", async () => {
   const file = path.resolve("fixtures/shared.bgcomp");
   await app.evaluate(({ dialog }, filePath) => {

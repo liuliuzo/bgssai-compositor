@@ -1,0 +1,5 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><title>启动恢复检查原型</title>
+<main><h1>开始创作</h1><p role="status" id="status">正在检查自动恢复…</p>
+<button class="document-action" disabled>新建</button><button class="document-action" disabled>打开</button><button class="document-action" disabled>打开示例</button>
+<p>交互原型：等待检查完成后，再开始创建或打开文档。</p>
+<button onclick="document.querySelectorAll('.document-action').forEach(button=>button.disabled=false);document.getElementById('status').textContent='自动恢复已就绪'">模拟检查完成</button></main></html>

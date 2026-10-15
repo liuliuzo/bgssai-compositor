@@ -456,8 +456,11 @@ export function App() {
   );
   const action = useCallback(
     (name: string) => {
+      if (!recoveryReady) {
+        message("正在检查自动恢复，请稍候");
+        return;
+      }
       if (
-        !recoveryReady ||
         (recoveryOffer && !["help", "connections", "updates"].includes(name))
       ) {
         message("请先恢复或丢弃上次的自动恢复项目");
@@ -1050,8 +1053,9 @@ export function App() {
     </label>
   );
 
+  const documentActionDisabled = working || !recoveryReady || Boolean(recoveryOffer);
   return (
-    <div className="app" aria-busy={working || editor.busy}>
+    <div className="app" aria-busy={working || editor.busy || !recoveryReady}>
       <header className="topbar">
         <div className="brand">
           <Layers3 size={23} />
@@ -1060,11 +1064,11 @@ export function App() {
           </span>
         </div>
         <div className="header-actions">
-          <Button onClick={() => action("new")} disabled={working}>
+          <Button onClick={() => action("new")} disabled={documentActionDisabled}>
             <FilePlus2 size={16} />
             新建
           </Button>
-          <Button onClick={() => action("open")} disabled={working}>
+          <Button onClick={() => action("open")} disabled={documentActionDisabled}>
             <FolderOpen size={16} />
             打开
           </Button>
@@ -1272,7 +1276,7 @@ export function App() {
               <Button
                 title="导入图像为图层 (Ctrl+Shift+O)"
                 onClick={() => action("import")}
-                disabled={working}
+                disabled={documentActionDisabled}
               >
                 <ImagePlus size={15} />
                 导入图像
@@ -1332,16 +1336,16 @@ export function App() {
                   组合图层、勾勒细节，创作属于你的画面。
                 </p>
                 <div className="welcome-actions">
-                  <Button className="primary" onClick={() => action("new")}>
+                  <Button className="primary" onClick={() => action("new")} disabled={documentActionDisabled}>
                     <Plus size={17} />
                     创建画布
                   </Button>
-                  <Button onClick={() => action("open")}>
+                  <Button onClick={() => action("open")} disabled={documentActionDisabled}>
                     <FolderOpen size={17} />
                     打开图像或项目
                   </Button>
                 </div>
-                <button className="demo-link" onClick={() => action("demo")}>
+                <button className="demo-link" onClick={() => action("demo")} disabled={documentActionDisabled}>
                   打开示例，探索图层 <span>↗</span>
                 </button>
                 <p className="welcome-foot">

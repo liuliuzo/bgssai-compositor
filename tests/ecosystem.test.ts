@@ -48,7 +48,12 @@ test("Chat PKCE creates a distinct session; conflicts, revocation, account isola
       return revocationOffline
         ? new Response("", { status: 503 })
         : Response.json({});
+    if (url.endsWith("/v1/models")) return Response.json({ data: [{ id: "test-model", billing_multiplier: 0.5, billing_unit: "token", price_version: 9, currency: "USD", input_fen_per_million: 10 }] });
+    if (url.includes("/v1/usage/")) return Response.json({ request_id: url.split("/").at(-1), billing_status: "settled", billed_tokens: 5, raw_tokens: 10, debit_fen: 2, currency: "USD" });
     assert.equal(url, "https://hub.example/v1/chat/completions");
+    const owner = createHash("sha256").update("https://chat.example\0user-1").digest("hex");
+    const persisted = JSON.parse(await fs.readFile(path.join(directory, "usage", owner, `${options.headers["X-Request-Id"]}.json`), "utf8"));
+    assert.equal(persisted.request_id, options.headers["X-Request-Id"]);
     assert.equal(options.headers.Authorization, "Bearer server-hub-key");
     return Response.json({ choices: [{ message: { content: "建议文字" } }] });
   };
@@ -176,6 +181,16 @@ test("Chat PKCE creates a distinct session; conflicts, revocation, account isola
       ).text,
       "建议文字",
     );
+    const receipt = (await (await request("/api/ai/usage", "GET", undefined, token)).json()).data[0];
+    assert.equal(receipt.billed_tokens, 5);
+    assert.equal(receipt.currency, "USD");
+    assert.equal(receipt.reconciled, true);
+    assert.equal((await request("/api/ai/text", "POST", { prompt: "设计建议", request_id: receipt.request_id }, token)).status, 409);
+    assert.equal(calls.filter((url) => url.endsWith("/v1/chat/completions")).length, 1);
+    const model = (await (await request("/api/ai/models", "GET", undefined, token)).json()).data[0];
+    assert.equal(model.billing_multiplier, 0.5);
+    assert.equal(model.price_version, 9);
+    assert.equal(model.input_fen_per_million, 10);
     subject = "../../different-account";
     const second = await login();
     await request(
@@ -189,6 +204,7 @@ test("Chat PKCE creates a distinct session; conflicts, revocation, account isola
         .content,
       null,
     );
+    assert.deepEqual((await (await request("/api/ai/usage", "GET", undefined, second)).json()).data, []);
     await request(
       "/api/grants",
       "PUT",
