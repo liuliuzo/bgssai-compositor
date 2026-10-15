@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { request, getConfig, openExternal } from "./platform";
 import { parseProject } from "./project";
 import type { Editor } from "./engine";
+import { priceLabel, usageLabel, type ModelPrice, type UsageReceipt } from "./usage";
 
 type Grants = { sync: boolean; ai: boolean; bot: boolean };
 type Session = { token: string; name: string; grants: Grants };
@@ -29,6 +30,9 @@ export function Connections({
   const [prompt, setPrompt] = useState("");
   const [answer, setAnswer] = useState("");
   const [botToken, setBotToken] = useState("");
+  const [models, setModels] = useState<ModelPrice[]>([]);
+  const [usage, setUsage] = useState<UsageReceipt[]>([]);
+  const aiRequest = useRef<{ prompt: string; id: string } | null>(null);
   const mounted = useRef(true);
   const operation = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -79,6 +83,21 @@ export function Connections({
       clearTimeout(timer);
     };
   }, [waiting, message]);
+  useEffect(() => {
+    if (!current) { setModels([]); setUsage([]); return; }
+    let cancelled = false;
+    const load = async () => {
+      const records = await request("ai/usage", "GET", undefined, current.token);
+      if (!cancelled) setUsage(records.data);
+      if (current.grants.ai) {
+        const catalog = await request("ai/models", "GET", undefined, current.token);
+        if (!cancelled) setModels(catalog.data);
+      }
+    };
+    void load().catch(() => {});
+    const timer = setInterval(() => void load().catch(() => {}), 60000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [current]);
   const changeGrant = (key: keyof Grants, value: boolean) =>
     void operation(async () => {
       const grants = { ...session!.grants, [key]: value };
@@ -239,6 +258,12 @@ export function Connections({
               Bot
               可对已同步项目改名、调整图层显隐/不透明度和下载。撤销同步后云端项目会删除。
             </p>
+            {current.grants.ai && <div aria-label="AI 模型价格">
+              {models.length ? models.map((model) => <p key={model.id}>
+                {priceLabel(model)}
+                <br />输入 / 输出每百万 token：{model.input_fen_per_million == null ? "待配置" : model.input_fen_per_million / 100} / {model.output_fen_per_million == null ? "待配置" : model.output_fen_per_million / 100} {model.currency ?? ""}
+              </p>) : <p>模型价格待确认</p>}
+            </div>}
             <label className="form-label">
               AI 建议（只发送输入文字）
               <textarea
@@ -251,18 +276,27 @@ export function Connections({
               disabled={busy || !current.grants.ai || !prompt.trim()}
               onClick={() =>
                 void operation(async () => {
-                  const result = await request(
-                    "ai/text",
-                    "POST",
-                    { prompt },
-                    current.token,
-                  );
-                  setAnswer(result.text);
+                  if (aiRequest.current?.prompt !== prompt)
+                    aiRequest.current = { prompt, id: crypto.randomUUID() };
+                  try {
+                    const result = await request("ai/text", "POST", { prompt, request_id: aiRequest.current.id }, current.token);
+                    setAnswer(result.text);
+                    aiRequest.current = null;
+                  } finally {
+                    const records = await request("ai/usage", "GET", undefined, current.token);
+                    setUsage(records.data);
+                  }
                 })
               }
             >
               获取 TokenHub 建议
             </button>
+            <details>
+              <summary>用量与实扣（{usage.length} 条）</summary>
+              {usage.map((value) => <p key={`${value.hub}/${value.request_id}`}>
+                {value.model} · {usageLabel(value)}<br />{value.hub} / {value.request_id}
+              </p>)}
+            </details>
             {answer && (
               <>
                 <p className="ai-answer">{answer}</p>
@@ -296,6 +330,7 @@ export function Connections({
                   setCurrent(null);
                   setBotToken("");
                   setAnswer("");
+                  aiRequest.current = null;
                   message(
                     result.chatRevoked === false
                       ? "本应用会话及在线权限已撤销。Chat 暂未确认撤销，请到账户中心查看。"

@@ -19,6 +19,8 @@ export const routes = new Set([
   "project",
   "bot/token",
   "ai/text",
+  "ai/models",
+  "ai/usage",
 ]);
 export async function getConfig() {
   return window.desktop ? window.desktop.getConnections() : __APP_CONFIG__;

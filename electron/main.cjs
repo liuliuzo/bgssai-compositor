@@ -37,6 +37,8 @@ const connectionRoutes = new Set([
   "project",
   "bot/token",
   "ai/text",
+  "ai/models",
+  "ai/usage",
 ]);
 
 const MAX_BYTES = 128 * 1024 * 1024;

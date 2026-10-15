@@ -1,10 +1,11 @@
 import http from "node:http";
-import { randomBytes, createHash } from "node:crypto";
+import { randomBytes, createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseProject, MAX_PROJECT_BYTES } from "../src/project.ts";
 import storage from "../electron/storage.cjs";
+import { HubReceipts, modelFields } from "./hub-receipts.mjs";
 
 const random = () => randomBytes(32).toString("base64url");
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -43,6 +44,9 @@ export function createService(config, transport = fetch) {
   const publicOrigin = httpsOrigin(config.publicOrigin);
   if (!config.clientId) throw new Error("缺少 Chat 客户端登记");
   const dataDirectory = path.resolve(config.dataDirectory);
+  if (config.hubOrigin) config = { ...config, hubOrigin: httpsOrigin(config.hubOrigin) };
+  const receipts = new HubReceipts(dataDirectory, config, transport);
+  const owner = (session) => receipts.owner(issuer, session.sub);
   const sessions = new Map(),
     pending = new Map(),
     bots = new Map(),
@@ -413,43 +417,52 @@ export function createService(config, transport = fetch) {
         send(200, await saveProject(req, session, JSON.stringify(project)));
         return;
       }
+      if (route === "GET /api/ai/usage") {
+        send(200, { data: await receipts.list(owner(session)) });
+        return;
+      }
+      if (route === "GET /api/ai/models") {
+        if (!session.grants.ai) throw fail(403, "AI 未授权");
+        if (!config.hubOrigin || !config.hubKey || !config.hubModel)
+          throw fail(503, "TokenHub 尚未配置");
+        let model = {};
+        try {
+          const response = await transport(`${config.hubOrigin}/v1/models`, {
+            headers: { Authorization: `Bearer ${config.hubKey}` }, redirect: "error",
+            signal: AbortSignal.timeout(10000),
+          });
+          if (response.ok) model = (await response.json()).data?.find((item) => item.id === config.hubModel) ?? {};
+        } catch { /* Unavailable pricing must remain unknown. */ }
+        send(200, { data: [{ id: config.hubModel, hub: config.hubOrigin,
+          ...Object.fromEntries(modelFields.map((key) => [key, model[key] ?? null])) }] });
+        return;
+      }
       if (route === "POST /api/ai/text") {
         if (!session.grants.ai) throw fail(403, "AI 未授权");
         if (!config.hubOrigin || !config.hubKey || !config.hubModel)
           throw fail(503, "TokenHub 尚未配置");
-        const { prompt } = await body(req);
-        if (
-          typeof prompt !== "string" ||
-          !prompt.trim() ||
-          prompt.length > 4000
-        )
+        const { prompt, request_id = randomUUID() } = await body(req);
+        if (typeof prompt !== "string" || !prompt.trim() || prompt.length > 4000)
           throw fail(400, "提示词无效");
-        const response = await transport(
-          `${httpsOrigin(config.hubOrigin)}/v1/chat/completions`,
-          {
+        if (typeof request_id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(request_id))
+          throw fail(400, "请求 ID 无效");
+        res.setHeader("X-Request-Id", request_id);
+        const record = await receipts.begin(owner(session), request_id, config.hubOrigin, config.hubModel, prompt);
+        let text, billing;
+        try {
+          const response = await transport(`${config.hubOrigin}/v1/chat/completions`, {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${config.hubKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: config.hubModel,
-              messages: [{ role: "user", content: prompt }],
-              max_tokens: 512,
-              stream: false,
-            }),
-            redirect: "error",
-            signal: AbortSignal.timeout(30000),
-          },
-        );
-        if (!response.ok) throw fail(502, "TokenHub 请求失败");
-        const data = await response.json();
-        const text = data.choices?.[0]?.message?.content;
-        if (typeof text !== "string" || text.length > 10000)
-          throw fail(502, "TokenHub 返回无效内容");
-        if (!session.grants.ai || !sessions.has(token))
-          throw fail(403, "AI 授权已撤销");
-        send(200, { text });
+            headers: { Authorization: `Bearer ${config.hubKey}`, "Content-Type": "application/json", "X-Request-Id": request_id },
+            body: JSON.stringify({ model: config.hubModel, messages: [{ role: "user", content: prompt }], max_tokens: 512, stream: false }),
+            redirect: "error", signal: AbortSignal.timeout(30000),
+          });
+          if (!response.ok) throw fail(502, "TokenHub 请求失败");
+          const data = await response.json();
+          text = data.choices?.[0]?.message?.content;
+          if (typeof text !== "string" || text.length > 10000) throw fail(502, "TokenHub 返回无效内容");
+        } finally { billing = await receipts.refresh(record); }
+        if (!session.grants.ai || !sessions.has(token)) throw fail(403, "AI 授权已撤销");
+        send(200, { text, billing });
         return;
       }
       throw fail(404, "接口不存在");
@@ -463,7 +476,18 @@ export function createService(config, transport = fetch) {
       if (acquired) activeRequests--;
     }
   });
-  server.requestTimeout = 30000;
+  let recovering = false;
+  const recover = async () => {
+    if (recovering) return;
+    recovering = true;
+    try { await receipts.recover(); } catch { /* Retry without replaying paid generation. */ }
+    finally { recovering = false; }
+  };
+  const timer = setInterval(() => void recover(), 60000);
+  timer.unref();
+  server.once("listening", () => void recover());
+  server.once("close", () => clearInterval(timer));
+  server.requestTimeout = 45000;
   server.headersTimeout = 15000;
   return server;
 }
