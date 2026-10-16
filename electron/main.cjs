@@ -32,12 +32,42 @@ const connectionRoutes = new Set([
   "auth/begin",
   "auth/poll",
   "auth/cancel",
+  "auth/channels",
+  "auth/register",
+  "auth/login",
+  "auth/login/password",
+  "auth/code/send",
+  "auth/code/login",
+  "auth/code/verify",
+  "auth/oauth/begin",
+  "auth/oauth/callback",
+  "auth/logout",
+  "auth/revoke",
   "session",
   "grants",
   "project",
   "bot/token",
+  "bot/operate",
+  "bot/project",
+  "pat",
+  "mcp/tools",
+  "mcp/call",
+  "ai/models",
   "ai/text",
+  "support/sessions",
+  "support/messages",
+  "support/tickets",
+  "support/outbox",
 ]);
+function isAllowedConnectionRoute(route) {
+  if (typeof route !== "string") return false;
+  const clean = route.split("?")[0];
+  if (connectionRoutes.has(clean)) return true;
+  if (/^auth\/oauth\/(wechat|alipay|douyin|baidu)\/(authorize|callback)$/.test(clean))
+    return true;
+  if (/^support\/tickets\/[A-Za-z0-9_-]+\/messages$/.test(clean)) return true;
+  return false;
+}
 
 const MAX_BYTES = 128 * 1024 * 1024;
 const devURL =
@@ -112,7 +142,7 @@ function setupIPC() {
     "connections:request",
     async ({ route, method, body, token, etag }) => {
       if (
-        !connectionRoutes.has(route) ||
+        !isAllowedConnectionRoute(route) ||
         !["GET", "POST", "PUT", "DELETE"].includes(method)
       )
         throw new Error("连接请求无效");

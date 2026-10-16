@@ -65,8 +65,14 @@ import {
 } from "./project";
 import type { OpenedFile } from "./desktop";
 import { recovery, type Recovery } from "./recovery";
-import { native, platformName, saveNative } from "./platform";
-import { Connections } from "./Connections";
+import {
+  native,
+  platformName,
+  saveNative,
+  request,
+  formatServiceError,
+} from "./platform";
+import { Connections, getActiveSession } from "./Connections";
 import { Updates } from "./Updates";
 import { parseProject } from "./project";
 
@@ -83,7 +89,14 @@ const TOOLS: { id: Tool; name: string; key: string; icon: typeof Brush }[] = [
   { id: "eyedropper", name: "吸管", key: "I", icon: Pipette },
   { id: "hand", name: "抓手", key: "H", icon: Hand },
 ];
-type Modal = "new" | "export" | "help" | "connections" | "updates" | null;
+type Modal =
+  | "new"
+  | "export"
+  | "help"
+  | "connections"
+  | "updates"
+  | "support"
+  | null;
 type Gesture = {
   type: Tool | "scale";
   start: Point;
@@ -286,6 +299,175 @@ function TextProperties({
           栅格化
         </Button>
       </div>
+    </div>
+  );
+}
+
+function SupportModal({
+  close,
+  message,
+}: {
+  close: () => void;
+  message: (value: string, error?: boolean) => void;
+}) {
+  const active = getActiveSession();
+  const [busy, setBusy] = useState(false);
+  const [subject, setSubject] = useState("");
+  const [content, setContent] = useState("");
+  const [sessionId, setSessionId] = useState("");
+  const [sessions, setSessions] = useState<
+    { session_id: string; subject: string; status: string }[]
+  >([]);
+  const [messages, setMessages] = useState<
+    { message_id: string; sender_role: string; content: string }[]
+  >([]);
+  const [tickets, setTickets] = useState<
+    { ticket_id: string; subject: string; status: string }[]
+  >([]);
+
+  const refresh = useCallback(async () => {
+    if (!active) return;
+    try {
+      const [sessRes, msgRes, tktRes] = await Promise.all([
+        request("support/sessions", "GET", undefined, active.token),
+        request("support/messages", "GET", undefined, active.token),
+        request("support/tickets", "GET", undefined, active.token),
+      ]);
+      setSessions(Array.isArray(sessRes?.sessions) ? sessRes.sessions : []);
+      setMessages(Array.isArray(msgRes?.messages) ? msgRes.messages : []);
+      setTickets(Array.isArray(tktRes?.tickets) ? tktRes.tickets : []);
+      if (!sessionId && sessRes?.sessions?.[0]?.session_id) {
+        setSessionId(sessRes.sessions[0].session_id);
+      }
+    } catch (error) {
+      message(formatServiceError((error as Error).message), true);
+    }
+  }, [active, message, sessionId]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const runSupport = async (fn: () => Promise<void>) => {
+    setBusy(true);
+    try {
+      await fn();
+      await refresh();
+    } catch (error) {
+      message(formatServiceError((error as Error).message), true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop">
+      <section
+        className="modal connections"
+        role="dialog"
+        aria-modal="true"
+        aria-label="客服与工单"
+      >
+        <div className="modal-heading">
+          <h2>在线客服会话与工单 (product_code=compositor)</h2>
+          <button onClick={close} disabled={busy}>
+            关闭
+          </button>
+        </div>
+        {!active ? (
+          <p>请先在“账户与连接”中登录账户，以创建受隔离保护的客服会话与工单。</p>
+        ) : (
+          <>
+            <label className="form-label">
+              咨询或工单主题
+              <input
+                aria-label="客服主题"
+                value={subject}
+                maxLength={200}
+                onChange={(e) => setSubject(e.target.value)}
+              />
+            </label>
+            <label className="form-label">
+              咨询消息内容
+              <textarea
+                aria-label="客服消息内容"
+                value={content}
+                maxLength={4000}
+                onChange={(e) => setContent(e.target.value)}
+              />
+            </label>
+            <div className="connection-actions">
+              <button
+                className="primary"
+                disabled={busy || !subject.trim()}
+                onClick={() =>
+                  void runSupport(async () => {
+                    const created = await request(
+                      "support/sessions",
+                      "POST",
+                      {
+                        subject: subject.trim(),
+                        initial_message: content.trim(),
+                      },
+                      active.token,
+                    );
+                    setSessionId(created.session_id);
+                    setContent("");
+                    message("客服会话已建立");
+                  })
+                }
+              >
+                新建客服会话
+              </button>
+              <button
+                disabled={busy || !content.trim()}
+                onClick={() =>
+                  void runSupport(async () => {
+                    await request(
+                      "support/messages",
+                      "POST",
+                      {
+                        session_id: sessionId || undefined,
+                        content: content.trim(),
+                      },
+                      active.token,
+                    );
+                    setContent("");
+                    message("客服消息已发送");
+                  })
+                }
+              >
+                发送会话消息
+              </button>
+              <button
+                disabled={busy || !subject.trim() || !content.trim()}
+                onClick={() =>
+                  void runSupport(async () => {
+                    await request(
+                      "support/tickets",
+                      "POST",
+                      {
+                        session_id: sessionId || undefined,
+                        subject: subject.trim(),
+                        content: content.trim(),
+                      },
+                      active.token,
+                    );
+                    setContent("");
+                    message("客服工单已提交");
+                  })
+                }
+              >
+                提交客服工单
+              </button>
+            </div>
+            <p>
+              当前会话数：{sessions.length} | 消息数：{messages.length} | 工单数：
+              {tickets.length}
+            </p>
+          </>
+        )}
+      </section>
     </div>
   );
 }

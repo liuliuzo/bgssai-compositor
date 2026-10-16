@@ -252,3 +252,268 @@ test("Chat PKCE creates a distinct session; conflicts, revocation, account isola
     await fs.rm(directory, { recursive: true, force: true });
   }
 });
+
+test("Multi-channel auth, AI model selection & hub allowlist, Support bridge HMAC idempotency, and expanded MCP tools", async () => {
+  const directory = await fs.mkdtemp(
+    path.join(os.tmpdir(), "compositor-ops-test-"),
+  );
+  let lastAiHeaders: Record<string, string> = {};
+  const transport = async (url: string, options: any = {}) => {
+    lastAiHeaders = options.headers ?? {};
+    if (url.includes("fail-tokenhub")) {
+      return new Response("TokenHub https://internal.hub/v1 key secret-hub-key failed", { status: 502 });
+    }
+    return Response.json({
+      choices: [{ message: { content: "TokenHub 推荐图层标题" } }],
+    });
+  };
+  const server = createService(
+    {
+      chatIssuer: "https://chat.example",
+      publicOrigin: "https://compositor.example",
+      clientId: "compositor",
+      dataDirectory: directory,
+      hubOrigin: "https://hub.example",
+      hubKey: "secret-hub-key",
+      hubModel: "qwen-plus",
+      supportBridgeSecret: "bridge-hmac-secret-123",
+    },
+    transport,
+  );
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const req = async (
+    route: string,
+    method = "GET",
+    body?: unknown,
+    token?: string,
+    extraHeaders: Record<string, string> = {},
+  ) =>
+    fetch(`${base}${route}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...extraHeaders,
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+
+  try {
+    const reg = await (
+      await req("/api/auth/register", "POST", {
+        username: "designer_a",
+        password: "Password#12345",
+      })
+    ).json();
+    assert.equal(reg.ok, true);
+    assert.ok(reg.token);
+
+    const loginRes = await (
+      await req("/api/auth/login", "POST", {
+        username: "designer_a",
+        password: "Password#12345",
+      })
+    ).json();
+    assert.equal(loginRes.ok, true);
+    const userAToken = loginRes.token;
+
+    const codeSent = await (
+      await req("/api/auth/code/send", "POST", { target: "userb@example.com" })
+    ).json();
+    assert.equal(codeSent.ok, true);
+    const codeLogin = await (
+      await req("/api/auth/code/login", "POST", {
+        challenge_id: codeSent.challenge_id,
+        code: codeSent.code,
+      })
+    ).json();
+    assert.equal(codeLogin.ok, true);
+    const userBToken = codeLogin.token;
+
+    const oauthBegin = await (
+      await req("/api/auth/oauth/wechat/authorize", "POST")
+    ).json();
+    assert.equal(oauthBegin.ok, true);
+    const oauthCb = await (
+      await req("/api/auth/oauth/wechat/callback", "POST", {
+        state: oauthBegin.state,
+        code: "wx_code_001",
+        openid: "wx_open_1",
+      })
+    ).json();
+    assert.equal(oauthCb.ok, true);
+    assert.equal(oauthCb.auth_channel, "wechat");
+
+    await req("/api/grants", "PUT", { sync: true, ai: true, bot: true }, userAToken);
+    const catalog = await (await req("/api/ai/models", "GET", undefined, userAToken)).json();
+    assert.equal(catalog.product_code, "compositor");
+    assert.ok(catalog.models.some((m: any) => m.model_id === "deepseek-v3"));
+
+    const aiOk = await (
+      await req(
+        "/api/ai/text",
+        "POST",
+        { prompt: "生成海报标题", model: "deepseek-v3" },
+        userAToken,
+      )
+    ).json();
+    assert.equal(aiOk.model_id, "deepseek-v3");
+    assert.equal(lastAiHeaders["X-Bgssai-Product"], "bgssai-compositor");
+    assert.equal(lastAiHeaders["X-Bgssai-Model"], "deepseek-v3");
+    assert.ok(!aiOk.text.toLowerCase().includes("tokenhub"));
+
+    const badOrigin = await req(
+      "/api/ai/text",
+      "POST",
+      { prompt: "test", model: "deepseek-v3", hub_origin: "https://evil.example" },
+      userAToken,
+    );
+    assert.equal(badOrigin.status, 403);
+    const badOriginBody = await badOrigin.json();
+    assert.ok(!badOriginBody.error.toLowerCase().includes("tokenhub"));
+
+    const sCreated = await (
+      await req(
+        "/api/support/sessions",
+        "POST",
+        { subject: "图层导出咨询", message: "请问如何导出透明 PNG？" },
+        userAToken,
+      )
+    ).json();
+    assert.equal(sCreated.product_code, "compositor");
+    const tCreated = await (
+      await req(
+        "/api/support/tickets",
+        "POST",
+        {
+          session_id: sCreated.session_id,
+          subject: "色彩配置工单",
+          content: "导出色彩偏差排查",
+        },
+        userAToken,
+      )
+    ).json();
+    assert.equal(tCreated.product_code, "compositor");
+
+    assert.equal(
+      (
+        await req(
+          `/api/support/tickets?ticket_id=${tCreated.ticket_id}`,
+          "GET",
+          undefined,
+          userBToken,
+        )
+      ).status,
+      403,
+    );
+
+    const webhookPayload = JSON.stringify({
+      event_id: "evt_comp_1001",
+      product_code: "compositor",
+      session_id: sCreated.session_id,
+      ticket_id: tCreated.ticket_id,
+      status: "resolved",
+      reply: "请使用 PNG 导出选项以保留透明通道",
+    });
+    const { createHmac: hmacFn } = await import("node:crypto");
+    const sig = hmacFn("sha256", "bridge-hmac-secret-123")
+      .update(webhookPayload)
+      .digest("hex");
+
+    const badWebhook = await fetch(`${base}/api/support-bridge/inbox`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Support-Signature": "sha256=" + "0".repeat(64),
+      },
+      body: webhookPayload,
+    });
+    assert.equal(badWebhook.status, 401);
+
+    const okWebhook1 = await (
+      await fetch(`${base}/api/support-bridge/inbox`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Support-Signature": `sha256=${sig}`,
+        },
+        body: webhookPayload,
+      })
+    ).json();
+    assert.equal(okWebhook1.ok, true);
+    assert.equal(okWebhook1.deduplicated, false);
+
+    const okWebhook2 = await (
+      await fetch(`${base}/api/support-bridge/inbox`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Support-Signature": `sha256=${sig}`,
+        },
+        body: webhookPayload,
+      })
+    ).json();
+    assert.equal(okWebhook2.ok, true);
+    assert.equal(okWebhook2.deduplicated, true);
+
+    const patRes = await (
+      await req("/api/pat", "POST", { name: "mcp-worker" }, userAToken)
+    ).json();
+    const pat = patRes.token;
+
+    const toolsRes = await (await req("/api/mcp/tools", "GET", undefined, pat)).json();
+    assert.ok(toolsRes.tools.some((t: any) => t.name === "preview_destructive_edit"));
+
+    const createdProj = await (
+      await req(
+        "/api/mcp/call",
+        "POST",
+        { tool: "create_project", name: "海报工程", width: 1200, height: 800 },
+        pat,
+      )
+    ).json();
+    assert.equal(createdProj.ok, true);
+
+    const previewRes = await (
+      await req(
+        "/api/mcp/call",
+        "POST",
+        {
+          tool: "preview_destructive_edit",
+          operation: "crop_canvas",
+          width: 800,
+          height: 600,
+        },
+        pat,
+      )
+    ).json();
+    assert.equal(previewRes.ok, true);
+    assert.ok(previewRes.confirmation_token);
+
+    const appliedRes = await (
+      await req(
+        "/api/mcp/call",
+        "POST",
+        {
+          tool: "apply_destructive_edit",
+          preview_id: previewRes.preview_id,
+          confirmation_token: previewRes.confirmation_token,
+          confirmed: true,
+        },
+        pat,
+      )
+    ).json();
+    assert.equal(appliedRes.ok, true);
+    assert.equal(appliedRes.project.width, 800);
+
+    const undoneRes = await (
+      await req("/api/mcp/call", "POST", { tool: "undo_last_edit" }, pat)
+    ).json();
+    assert.equal(undoneRes.ok, true);
+    assert.equal(undoneRes.project.width, 1200);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});

@@ -41,8 +41,9 @@ Windows 构建生成 NSIS 和 portable，macOS 生成 DMG / ZIP，Linux 生成 A
 
 自动恢复在桌面使用带 SHA256 的两代原子快照，手机使用 IndexedDB 事务。自动保存只读取完整历史提交，不为选区、缩放或未结束笔划重复序列化。预算包含当前和待采用项目、Canvas 工作面、历史和字符串副本，在图像解码和主要 Canvas 分配前检查。
 
-可选服务由 Chat 授权码 + S256 PKCE 验证 sub 后建立独立 Compositor 会话。会话和 Bot 令牌只在服务内存中保留，客户端会话也不持久化；同步项目用 issuer/sub 哈希隔离，If-Match 阻止并发覆盖。同步、Bot、AI 默认关闭；撤销同步清除云端项目，AI 仅使用服务端配置的 TokenHub。服务重启需要重新授权，暂不支持多节点会话共享。
+可选在线服务在保持离线免登录编辑完整可用的前提下，支持本地账号注册/登录、手机/邮箱验证码登录、国内四渠道第三方 OAuth（`wechat` / `alipay` / `douyin` / `baidu`）及 Chat 授权码 + S256 PKCE 统一登录，建立按 `auth_channel + sub` 隔离的可撤销独立会话。AI 服务暴露受控模型目录（`GET /api/ai/models`），按用户所选模型与产品分区（`X-Bgssai-Product: bgssai-compositor`、`X-Bgssai-Model`、`X-Bgssai-Region`）路由至服务端受控白名单节点，并对用户侧错误统一脱敏。客服桥接（`product_code=compositor`）支持会话、消息、工单及 `/api/support-bridge/inbox` HMAC 验签与 `event_id` 幂等回调。Bot / MCP 扩展提供项目列表、新建、读取、导入导出、破坏性编辑预览与确认执行及撤销回滚。
 
-PR / develop 构建只上传 artifact。手工签名发布只接受 develop 上的 tag，使用受控环境凭据创建 draft Release。Ed25519 清单绑定源码 SHA、包版本、平台、大小和 SHA256；更新拒绝降级、过期清单、错误平台和缺失回滚包。Windows NSIS 安装由独立 helper 执行并等待渲染器启动回执，失败安装上一版，再次检查启动。其它平台保留校验后的上一版用于手工回滚；移动端由系统分发更新。完整流程和验收边界见 [COMP-02/04/05](../feature/COMP-02-04-05.md)。
+PR / develop 构建只上传 artifact。手工签名发布只接受 develop 上的 tag，使用受控环境凭据创建 draft Release。Ed25519 清单绑定源码 SHA、包版本、平台、大小和 SHA256；更新拒绝降级、过期清单、错误平台和缺失回滚包。Windows NSIS 安装由独立 helper 执行并等待渲染器启动回执，失败安装上一版，再次检查启动。其它平台保留校验后的上一版用于手工回滚；移动端由系统分发更新。完整流程和验收边界见 [COMP-02/04/05](../feature/COMP-02-04-05.md) 与 [OPS-COMP-01/02](../feature/OPS-COMP-01-02.md)。
 
-开发和生产统一从 `develop` 部署，仅 properties 区分地址和功能配置。Chat client secret、Hub key、代码签名及发布私钥通过环境变量注入，不进入客户端、项目文件或仓库。
+开发和生产统一从 `develop` 部署，仅 properties 区分地址和功能配置。Chat client secret、受控中枢密钥、客服桥接签名密钥、代码签名及发布私钥通过环境变量注入，不进入客户端、项目文件或仓库。
+
