@@ -43,6 +43,19 @@ export class HubReceipts {
     this.transport = transport;
   }
   owner(issuer, sub) { return hash(`${issuer}\0${sub}`); }
+  canRefresh(record) {
+    if (!this.config.hubKey || hash(this.config.hubKey) !== record.key_fingerprint) return false;
+    const candidates = [this.config.hubOrigin, this.config.hubCnOrigin, this.config.hubGlobalOrigin,
+      ...Object.values(this.config.hubOrigins ?? {}), ...(this.config.allowedHubOrigins ?? [])];
+    return candidates.some((value) => {
+      if (typeof value !== "string" || !value.trim()) return false;
+      try {
+        const url = new URL(value.trim());
+        return url.protocol === "https:" && !url.username && !url.password && url.pathname === "/" &&
+          !url.search && !url.hash && url.origin === record.hub;
+      } catch { return false; }
+    });
+  }
   target(record, suffix = "json") {
     if (!/^[a-f0-9]{64}$/.test(record.owner) ||
         !/^[a-f0-9-]{36}$/.test(record.request_id)) throw new Error("Invalid receipt path");
@@ -75,8 +88,7 @@ export class HubReceipts {
   }
   async refresh(record) {
     if (await read(this.target(record, "settled.json"))) return this.view(record);
-    if (this.config.hubOrigin !== record.hub || !this.config.hubKey ||
-        hash(this.config.hubKey) !== record.key_fingerprint) return this.view(record);
+    if (!this.canRefresh(record)) return this.view(record);
     let billing = null;
     try {
       const response = await this.transport(`${record.hub}/v1/usage/${record.request_id}`, {
@@ -133,7 +145,7 @@ export class HubReceipts {
         if (await read(this.target(record, "settled.json"))) continue;
         const pending = await read(this.target(record, "pending.json"));
         if (pending?.next_poll > Date.now()) continue;
-        if (this.config.hubOrigin !== record.hub || !this.config.hubKey || hash(this.config.hubKey) !== record.key_fingerprint) continue;
+        if (!this.canRefresh(record)) continue;
         await this.refresh(record);
         if (++count >= 50) return;
       }

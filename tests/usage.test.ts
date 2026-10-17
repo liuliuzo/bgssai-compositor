@@ -94,3 +94,22 @@ test("UI keeps unknown pricing and pending cash distinct from actual zero or fra
   assert.match(priceLabel({ id: "m", hub: "h" }), /倍率待配置/);
   assert.match(usageLabel({ id: "m", hub: "h", model: "m", request_id: "id", billing_status: "pending", reconciled: false, billed_tokens: 0 }), /实扣 0 token.*现金 待确认.*待对账/);
 });
+
+test("regional receipts recover only from a still configured origin with the original key", async () => fixture(async (directory) => {
+  const regional = { ...config, hubGlobalOrigin: "https://global.example" };
+  const calls: string[] = [];
+  const transport = async (url: string, options: any) => {
+    calls.push(url);
+    assert.equal(options.method, undefined);
+    assert.equal(options.headers.Authorization, "Bearer original-key");
+    return Response.json({ request_id: url.split("/").at(-1), billing_status: "settled", billed_tokens: 12 });
+  };
+  const store = new HubReceipts(directory, regional, transport);
+  const record = await store.begin(store.owner("issuer", "user"), randomUUID(), regional.hubGlobalOrigin, "global-model", "prompt");
+  await new HubReceipts(directory, config, transport).recover();
+  await new HubReceipts(directory, { ...regional, hubKey: "rotated-key" }, transport).recover();
+  assert.equal(calls.length, 0);
+  await new HubReceipts(directory, regional, transport).recover();
+  assert.deepEqual(calls, [`https://global.example/v1/usage/${record.request_id}`]);
+  assert.equal((await store.list(record.owner))[0].billed_tokens, 12);
+}));

@@ -14,14 +14,48 @@ export const routes = new Set([
   "auth/begin",
   "auth/poll",
   "auth/cancel",
+  "auth/channels",
+  "auth/register",
+  "auth/login",
+  "auth/login/password",
+  "auth/code/send",
+  "auth/code/login",
+  "auth/code/verify",
+  "auth/oauth/begin",
+  "auth/oauth/callback",
+  "auth/logout",
+  "auth/revoke",
   "session",
   "grants",
   "project",
   "bot/token",
-  "ai/text",
+  "bot/operate",
+  "bot/project",
+  "pat",
+  "mcp/tools",
+  "mcp/call",
   "ai/models",
+  "ai/text",
   "ai/usage",
+  "support/sessions",
+  "support/messages",
+  "support/tickets",
+  "support/outbox",
 ]);
+
+function isAllowedRoute(route: string): boolean {
+  const clean = route.split("?")[0];
+  if (routes.has(clean)) return true;
+  if (/^auth\/oauth\/(wechat|alipay|douyin|baidu)\/(authorize|callback)$/.test(clean))
+    return true;
+  if (/^support\/tickets\/[A-Za-z0-9_-]+\/messages$/.test(clean)) return true;
+  return false;
+}
+
+export function formatServiceError(message: string): string {
+  return String(message || "服务请求失败").replace(/tokenhub/gi, "AI 模型服务");
+}
+
 export async function getConfig() {
   return window.desktop ? window.desktop.getConnections() : __APP_CONFIG__;
 }
@@ -32,7 +66,7 @@ export async function request(
   token?: string,
   etag?: string,
 ) {
-  if (!routes.has(route) || !["GET", "POST", "PUT", "DELETE"].includes(method))
+  if (!isAllowedRoute(route) || !["GET", "POST", "PUT", "DELETE"].includes(method))
     throw new Error("无效的连接请求");
   if (window.desktop)
     return window.desktop.requestConnection({
@@ -68,12 +102,17 @@ export async function request(
       readTimeout: 30000,
       disableRedirects: true,
     });
-    if (response.status < 200 || response.status >= 300)
+    if (response.status < 200 || response.status >= 300) {
+      const serverMsg =
+        typeof response.data?.error === "string"
+          ? formatServiceError(response.data.error)
+          : `连接失败（${response.status}）`;
       throw new Error(
         response.status === 412
           ? "云端版本已变化，请先下载云端版本，避免覆盖。"
-          : `连接失败（${response.status}）`,
+          : serverMsg,
       );
+    }
     return response.data;
   }
   const response = await fetch(`${base.origin}/api/${route}`, {
@@ -84,12 +123,21 @@ export async function request(
     signal: AbortSignal.timeout(30000),
     credentials: "omit",
   });
-  if (!response.ok)
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const errJson = await response.json();
+      if (typeof errJson?.error === "string")
+        detail = formatServiceError(errJson.error);
+    } catch {
+      // ignore JSON parse error
+    }
     throw new Error(
       response.status === 412
         ? "云端版本已变化，请先下载云端版本，避免覆盖。"
-        : `连接失败（${response.status}）`,
+        : detail || `连接失败（${response.status}）`,
     );
+  }
   return response.json();
 }
 export async function openExternal(url: string) {

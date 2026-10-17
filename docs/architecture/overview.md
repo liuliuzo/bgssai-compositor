@@ -45,6 +45,13 @@ Windows 构建生成 NSIS 和 portable，macOS 生成 DMG / ZIP，Linux 生成 A
 
 可选服务由 Chat 授权码 + S256 PKCE 验证 sub 后建立独立 Compositor 会话。会话和 Bot 令牌只在服务内存中保留，客户端会话也不持久化；同步项目用 issuer/sub 哈希隔离，If-Match 阻止并发覆盖。同步、Bot、AI 默认关闭；撤销同步清除云端项目，AI 仅使用服务端配置的 TokenHub。服务重启需要重新授权，暂不支持多节点会话共享。
 
-PR / develop 构建只上传 artifact。手工签名发布只接受 develop 上的 tag，使用受控环境凭据创建 draft Release。Ed25519 清单绑定源码 SHA、包版本、平台、大小和 SHA256；更新拒绝降级、过期清单、错误平台和缺失回滚包。Windows NSIS 安装由独立 helper 执行并等待渲染器启动回执，失败安装上一版，再次检查启动。其它平台保留校验后的上一版用于手工回滚；移动端由系统分发更新。完整流程和验收边界见 [COMP-02/04/05](../feature/COMP-02-04-05.md)。
+可选在线服务在保持离线免登录编辑完整可用的前提下，支持持久化带盐密码哈希的本地账号注册/登录及 Chat 授权码 + S256 PKCE 登录；手机/邮箱验证码与国内四渠道 OAuth 尚未接入真实发送/身份校验适配器，所有发送、核验、授权与回调入口均返回 503，不生成验证码、授权地址或会话。有效通道建立按 `auth_channel + sub` 隔离的可撤销独立会话。AI 服务暴露受控模型目录（`GET /api/ai/models`），按用户所选模型与产品分区（`X-Bgssai-Product: bgssai-compositor`、`X-Bgssai-Model`、`X-Bgssai-Region`）路由至服务端受控白名单节点，并对用户侧错误统一脱敏。客服桥接（`product_code=compositor`）支持会话、消息、工单及 `/api/support-bridge/inbox` HMAC 验签与 `event_id` 幂等回调。Bot / MCP 扩展提供项目列表、新建、读取、导入导出、破坏性编辑预览与确认执行及撤销回滚。
 
-开发和生产统一从 `develop` 部署，仅 properties 区分地址和功能配置。Chat client secret、Hub key、代码签名及发布私钥通过环境变量注入，不进入客户端、项目文件或仓库。
+PR / develop 构建只上传 artifact。手工签名发布只接受 develop 上的 tag，使用受控环境凭据创建 draft Release。Ed25519 清单绑定源码 SHA、包版本、平台、大小和 SHA256；更新拒绝降级、过期清单、错误平台和缺失回滚包。Windows NSIS 安装由独立 helper 执行并等待渲染器启动回执，失败安装上一版，再次检查启动。其它平台保留校验后的上一版用于手工回滚；移动端由系统分发更新。完整流程和验收边界见 [COMP-02/04/05](../feature/COMP-02-04-05.md) 与 [OPS-COMP-01/02](../feature/OPS-COMP-01-02.md)。
+
+开发和生产统一从 `develop` 部署，仅 properties 区分地址和功能配置。Chat client secret、受控中枢密钥、客服桥接签名密钥、代码签名及发布私钥通过环境变量注入，不进入客户端、项目文件或仓库。
+
+
+整合约束：模型选择与区域路由沿用服务端登记节点，价格未知保持 null。每次生成先持久化原始 UUID，再携同一 X-Request-Id 发送；失败仍查询同一节点、同一密钥指纹的回执，重启仅 GET 对账，不重放生成。账号哈希持久化并以排他写入保证注册唯一性；已有账号读取失败时拒绝登录与重注册，避免重启后同名接管持久项目。各在线授权默认关闭。
+
+客服回调没有内置默认签名密钥：未配置时返回 503，已配置时继续校验 HMAC 和事件幂等。
