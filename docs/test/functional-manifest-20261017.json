@@ -274,7 +274,9 @@
         "TC-COMPOSITOR-PLATFORM-001-P",
         "TC-COMPOSITOR-PLATFORM-001-N"
       ],
-      "file": "docs/test/TC-opc-platform-20261017.md"
+      "file": "docs/test/TC-opc-platform-20261017.md",
+      "phase": "deferred-installable-delivery",
+      "note": "2026-10-17: improve existing projects only; installable delivery later phase"
     },
     {
       "id": "REQ-COMPOSITOR-PLATFORM-002",
@@ -283,7 +285,9 @@
         "TC-COMPOSITOR-PLATFORM-002-P",
         "TC-COMPOSITOR-PLATFORM-002-N"
       ],
-      "file": "docs/test/TC-opc-platform-20261017.md"
+      "file": "docs/test/TC-opc-platform-20261017.md",
+      "phase": "deferred-installable-delivery",
+      "note": "2026-10-17: improve existing projects only; installable delivery later phase"
     },
     {
       "id": "REQ-COMPOSITOR-PLATFORM-003",
@@ -292,7 +296,9 @@
         "TC-COMPOSITOR-PLATFORM-003-P",
         "TC-COMPOSITOR-PLATFORM-003-N"
       ],
-      "file": "docs/test/TC-opc-platform-20261017.md"
+      "file": "docs/test/TC-opc-platform-20261017.md",
+      "phase": "deferred-installable-delivery",
+      "note": "2026-10-17: improve existing projects only; installable delivery later phase"
     },
     {
       "id": "REQ-COMPOSITOR-PLATFORM-004",
@@ -301,7 +307,9 @@
         "TC-COMPOSITOR-PLATFORM-004-P",
         "TC-COMPOSITOR-PLATFORM-004-N"
       ],
-      "file": "docs/test/TC-opc-platform-20261017.md"
+      "file": "docs/test/TC-opc-platform-20261017.md",
+      "phase": "deferred-installable-delivery",
+      "note": "2026-10-17: improve existing projects only; installable delivery later phase"
     },
     {
       "id": "REQ-COMPOSITOR-PLATFORM-005",
@@ -310,7 +318,9 @@
         "TC-COMPOSITOR-PLATFORM-005-P",
         "TC-COMPOSITOR-PLATFORM-005-N"
       ],
-      "file": "docs/test/TC-opc-platform-20261017.md"
+      "file": "docs/test/TC-opc-platform-20261017.md",
+      "phase": "deferred-installable-delivery",
+      "note": "2026-10-17: improve existing projects only; installable delivery later phase"
     },
     {
       "id": "REQ-COMPOSITOR-REGRESSION-001",
@@ -769,70 +779,70 @@
       "id": "TC-COMPOSITOR-PLATFORM-001-P",
       "requirement": "REQ-COMPOSITOR-PLATFORM-001",
       "file": "TC-opc-platform-20261017.md",
-      "status": "待测",
+      "status": "延期",
       "kind": "P"
     },
     {
       "id": "TC-COMPOSITOR-PLATFORM-001-N",
       "requirement": "REQ-COMPOSITOR-PLATFORM-001",
       "file": "TC-opc-platform-20261017.md",
-      "status": "待测",
+      "status": "延期",
       "kind": "N"
     },
     {
       "id": "TC-COMPOSITOR-PLATFORM-002-P",
       "requirement": "REQ-COMPOSITOR-PLATFORM-002",
       "file": "TC-opc-platform-20261017.md",
-      "status": "待测",
+      "status": "延期",
       "kind": "P"
     },
     {
       "id": "TC-COMPOSITOR-PLATFORM-002-N",
       "requirement": "REQ-COMPOSITOR-PLATFORM-002",
       "file": "TC-opc-platform-20261017.md",
-      "status": "待测",
+      "status": "延期",
       "kind": "N"
     },
     {
       "id": "TC-COMPOSITOR-PLATFORM-003-P",
       "requirement": "REQ-COMPOSITOR-PLATFORM-003",
       "file": "TC-opc-platform-20261017.md",
-      "status": "待测",
+      "status": "延期",
       "kind": "P"
     },
     {
       "id": "TC-COMPOSITOR-PLATFORM-003-N",
       "requirement": "REQ-COMPOSITOR-PLATFORM-003",
       "file": "TC-opc-platform-20261017.md",
-      "status": "待测",
+      "status": "延期",
       "kind": "N"
     },
     {
       "id": "TC-COMPOSITOR-PLATFORM-004-P",
       "requirement": "REQ-COMPOSITOR-PLATFORM-004",
       "file": "TC-opc-platform-20261017.md",
-      "status": "待测",
+      "status": "延期",
       "kind": "P"
     },
     {
       "id": "TC-COMPOSITOR-PLATFORM-004-N",
       "requirement": "REQ-COMPOSITOR-PLATFORM-004",
       "file": "TC-opc-platform-20261017.md",
-      "status": "待测",
+      "status": "延期",
       "kind": "N"
     },
     {
       "id": "TC-COMPOSITOR-PLATFORM-005-P",
       "requirement": "REQ-COMPOSITOR-PLATFORM-005",
       "file": "TC-opc-platform-20261017.md",
-      "status": "待测",
+      "status": "延期",
       "kind": "P"
     },
     {
       "id": "TC-COMPOSITOR-PLATFORM-005-N",
       "requirement": "REQ-COMPOSITOR-PLATFORM-005",
       "file": "TC-opc-platform-20261017.md",
-      "status": "待测",
+      "status": "延期",
       "kind": "N"
     },
     {

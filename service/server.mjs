@@ -19,10 +19,13 @@ import {
 } from "../src/project.ts";
 import storage from "../electron/storage.cjs";
 import { HubReceipts, modelFields } from "./hub-receipts.mjs";
+import { createAccountStore } from "./accounts.mjs";
+import { createOtpService } from "./otp.mjs";
+import { createBillingStore } from "./billing.mjs";
 
 const PRODUCT_CODE = "compositor";
 const PRODUCT_HEADER = "bgssai-compositor";
-const UNAVAILABLE_AUTH_CHANNELS = ["verification_code", "wechat", "alipay", "douyin", "baidu"];
+const CN_OAUTH_CHANNELS = ["wechat", "alipay", "douyin", "baidu"];
 const DEFAULT_PNG =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==";
 
@@ -216,6 +219,16 @@ export function createService(config, transport = fetch) {
   const dataDirectory = path.resolve(config.dataDirectory);
   if (config.hubOrigin) config = { ...config, hubOrigin: httpsOrigin(config.hubOrigin) };
   const receipts = new HubReceipts(dataDirectory, config, transport);
+  const accounts = createAccountStore(dataDirectory);
+  const otp = createOtpService(dataDirectory, {
+    otpDelivery: config.otpDelivery,
+    otpTtlMs: config.otpTtlMs,
+    otpMaxSendPerHour: config.otpMaxSendPerHour,
+  });
+  const billing = createBillingStore(dataDirectory, {
+    packages: config.packages,
+    paymentCallbackSecret: config.paymentCallbackSecret,
+  });
   const owner = (session) => receipts.owner(issuer, session.sub);
   const sessions = new Map(),
     pending = new Map(),
@@ -231,9 +244,28 @@ export function createService(config, transport = fetch) {
     supportMessages = new Map(),
     supportTickets = new Map(),
     supportOutbox = [],
-    processedSupportEvents = new Map();
+    processedSupportEvents = new Map(),
+    stepUpTokens = new Map();
   let discovery,
     activeRequests = 0;
+
+  const unavailableAuthChannels = () => {
+    const list = [...CN_OAUTH_CHANNELS];
+    if (otp.delivery === "none") list.unshift("verification_code");
+    return list.map((channel) => ({
+      channel,
+      reason:
+        channel === "verification_code"
+          ? "真实短信或邮件通道尚未配置，暂未启用"
+          : "真实发送或第三方身份校验尚未接入，暂未启用",
+    }));
+  };
+
+  const availableAuthChannels = () => {
+    const channels = ["local", "chat"];
+    if (otp.delivery !== "none") channels.push("verification_code");
+    return channels;
+  };
 
   const buildModelCatalog = () => {
     const base = Array.isArray(config.models)
@@ -500,6 +532,7 @@ export function createService(config, transport = fetch) {
     grants = { sync: false, ai: false, bot: false },
     expiresInMs = 7200000,
     chatToken = null,
+    accountId = null,
   }) {
     const token = random();
     const cleanSub = String(sub).slice(0, 200);
@@ -510,6 +543,7 @@ export function createService(config, transport = fetch) {
       name: cleanName,
       authChannel,
       auth_channel: authChannel,
+      account_id: accountId,
       grants: { ...grants },
       expiresAt: Date.now() + Math.min(expiresInMs, 7200000),
       chatToken,
@@ -524,9 +558,27 @@ export function createService(config, transport = fetch) {
         sub: cleanSub,
         name: cleanName,
         auth_channel: authChannel,
+        account_id: accountId,
         grants: session.grants,
       },
     };
+  }
+
+  function revokeAllSessionsForAccount(accountId, sub) {
+    for (const [token, session] of sessions) {
+      if (session.account_id === accountId || session.sub === sub) {
+        sessions.delete(token);
+        for (const [key, value] of bots)
+          if (value.parent === token) bots.delete(key);
+        for (const [key, value] of pats)
+          if (value.parent === token) pats.delete(key);
+      }
+    }
+  }
+
+  async function resolveAccountId(session) {
+    if (session.account_id) return session.account_id;
+    return accounts.resolveAccountIdForSub(session.sub);
   }
 
   async function revokeUserSession(token, session) {
@@ -1140,11 +1192,8 @@ export function createService(config, transport = fetch) {
       if (route === "GET /api/auth/channels") {
         send(200, {
           product_code: PRODUCT_CODE,
-          channels: ["local", "chat"],
-          unavailable: UNAVAILABLE_AUTH_CHANNELS.map((channel) => ({
-            channel,
-            reason: "真实发送或第三方身份校验尚未接入，暂未启用",
-          })),
+          channels: availableAuthChannels(),
+          unavailable: unavailableAuthChannels(),
         });
         return;
       }
@@ -1162,43 +1211,26 @@ export function createService(config, transport = fetch) {
           .trim()
           .toLowerCase();
         const password = String(data.password ?? "");
-        if (!identifier || identifier.length > 160)
-          throw fail(400, "账号标识无效");
-        if (password.length < 6 || password.length > 200)
-          throw fail(400, "密码长度须为 6 至 200 位");
-        const salt = randomBytes(16).toString("hex");
-        const passwordHash = scryptSync(password, salt, 32).toString("hex");
         const displayName = String(
           data.display_name ?? data.name ?? data.username ?? identifier,
         ).slice(0, 200);
-        const sub = `local:${identifier}`;
-        const account = {
+        const { account, sub } = await accounts.createLocalPasswordAccount({
           identifier,
-          sub,
+          password,
           name: displayName,
-          salt,
-          passwordHash,
-          createdAt: now,
-        };
-        const accountDirectory = path.join(dataDirectory, "local-users");
-        await mkdir(accountDirectory, { recursive: true, mode: 0o700 });
-        try {
-          // Exclusive creation reserves identity across restarts and concurrent registrations.
-          await writeFile(path.join(accountDirectory, `${hash(identifier)}.json`), JSON.stringify(account), { flag: "wx", mode: 0o600, flush: true });
-        } catch (error) {
-          if (error.code === "EEXIST") throw fail(409, "账号已注册");
-          throw fail(503, "账号存储暂不可用");
-        }
+        });
         const created = createSessionRecord({
           sub,
           name: displayName,
           authChannel: "local",
+          accountId: account.account_id,
         });
         send(200, {
           ok: true,
           token: created.token,
           user_id: sub,
           auth_channel: "local",
+          account_id: account.account_id,
           session: created.publicSession,
         });
         return;
@@ -1220,48 +1252,91 @@ export function createService(config, transport = fetch) {
           .trim()
           .toLowerCase();
         const password = String(data.password ?? "");
-        let user;
-        try {
-          user = JSON.parse(await readFile(path.join(dataDirectory, "local-users", `${hash(identifier)}.json`), "utf8"));
-          if (user.identifier !== identifier || user.sub !== `local:${identifier}` ||
-              !/^[a-f0-9]{32}$/.test(user.salt) || !/^[a-f0-9]{64}$/.test(user.passwordHash)) {
-            throw new Error("Invalid account record");
-          }
-        } catch (error) {
-          if (error.code !== "ENOENT") throw fail(503, "账号存储暂不可用");
-        }
-        if (!user || !password) throw fail(401, "账号或密码错误");
-        const candidateHash = scryptSync(password, user.salt, 32).toString(
-          "hex",
-        );
-        if (
-          !timingSafeEqual(
-            Buffer.from(candidateHash, "hex"),
-            Buffer.from(user.passwordHash, "hex"),
-          )
-        ) {
-          throw fail(401, "账号或密码错误");
-        }
+        const verified = await accounts.verifyLocalPassword(identifier, password);
+        if (!verified) throw fail(401, "账号或密码错误");
         const created = createSessionRecord({
-          sub: user.sub,
-          name: user.name,
+          sub: verified.sub,
+          name: verified.user.name,
           authChannel: "local",
+          accountId: verified.account?.account_id ?? null,
         });
         send(200, {
           ok: true,
           token: created.token,
-          user_id: user.sub,
+          user_id: verified.sub,
           auth_channel: "local",
+          account_id: verified.account?.account_id ?? null,
           session: created.publicSession,
         });
         return;
       }
 
-      // No SMS/email delivery or verified CN OAuth adapter is implemented.
-      // Reject consumption and callbacks as well as initiation; never synthesize identity.
-      if (["POST /api/auth/code/send", "POST /api/auth/code/login", "POST /api/auth/code/verify"].includes(route)) {
-        throw fail(503, "手机/邮箱验证码登录尚未接入真实发送与核验服务，暂未启用");
+      if (route === "POST /api/auth/code/send") {
+        if (otp.delivery === "none") {
+          throw fail(503, "手机/邮箱验证码真实发送与核验服务尚未配置，暂未启用");
+        }
+        const data = await body(req);
+        const channel = String(data.channel ?? (data.email ? "email" : data.phone ? "phone" : "")).toLowerCase();
+        const target = data.target ?? (channel === "email" ? data.email : data.phone) ?? data.identifier;
+        const purpose = data.purpose ?? "login";
+        const result = await otp.send({ channel, target, purpose });
+        send(200, result);
+        return;
       }
+
+      if (
+        route === "POST /api/auth/code/login" ||
+        route === "POST /api/auth/code/verify"
+      ) {
+        if (otp.delivery === "none") {
+          throw fail(503, "手机/邮箱验证码真实发送与核验服务尚未配置，暂未启用");
+        }
+        const data = await body(req);
+        const channel = String(data.channel ?? (data.email ? "email" : data.phone ? "phone" : "")).toLowerCase();
+        const target = data.target ?? (channel === "email" ? data.email : data.phone) ?? data.identifier;
+        const purpose = data.purpose ?? "login";
+        const verified = await otp.verify({
+          challenge_id: data.challenge_id ?? data.challengeId,
+          code: data.code ?? data.verification_code,
+          channel,
+          target,
+          purpose,
+        });
+        if (purpose === "step_up" || purpose === "reauth") {
+          const { session: active } = authorized(req, false);
+          const accountId = await resolveAccountId(active);
+          if (!accountId) throw fail(400, "当前会话缺少账号");
+          const stepToken = random();
+          stepUpTokens.set(stepToken, {
+            account_id: accountId,
+            expires_at: Date.now() + 600_000,
+          });
+          send(200, { ok: true, reauth_token: stepToken, purpose });
+          return;
+        }
+        const { account, sub } = await accounts.ensureOtpAccount({
+          channel: verified.channel,
+          target: verified.target,
+          name: verified.target,
+        });
+        const created = createSessionRecord({
+          sub,
+          name: account.name,
+          authChannel: "verification_code",
+          accountId: account.account_id,
+        });
+        send(200, {
+          ok: true,
+          token: created.token,
+          user_id: sub,
+          auth_channel: "verification_code",
+          account_id: account.account_id,
+          session: created.publicSession,
+        });
+        return;
+      }
+
+      // CN OAuth adapters remain unavailable; never synthesize identity from client claims.
       if (url.pathname.startsWith("/api/auth/oauth/") && ["GET", "POST"].includes(req.method)) {
         throw fail(503, "第三方 OAuth 身份校验尚未接入，暂未启用");
       }
@@ -1352,13 +1427,24 @@ export function createService(config, transport = fetch) {
           await revoke(tokens.access_token);
           throw fail(400, "授权已取消或过期");
         }
+        const displayName = String(info.nickname ?? info.name ?? info.sub).slice(0, 200);
+        const { account } = await accounts.ensureChatAccount({
+          sub: info.sub,
+          name: displayName,
+        });
+        await accounts.recordAuthGrant({
+          accountId: account.account_id,
+          provider: "chat",
+          subject: info.sub,
+        });
         const created = createSessionRecord({
           sub: info.sub,
-          name: String(info.nickname ?? info.name ?? info.sub).slice(0, 200),
+          name: displayName,
           authChannel: "chat",
           grants: { sync: false, ai: false, bot: false },
           expiresInMs: tokens.expires_in * 1000,
           chatToken: tokens.access_token,
+          accountId: account.account_id,
         });
         entry.session = created.publicSession;
         res.writeHead(200, {
@@ -1510,6 +1596,16 @@ export function createService(config, transport = fetch) {
           idempotent_replay: false,
           message: createdMessage,
         });
+        return;
+      }
+
+      if (
+        route === "POST /api/billing/payment/callback" ||
+        route === "POST /api/billing/callback"
+      ) {
+        const data = await body(req);
+        const result = await billing.handlePaymentCallback(data);
+        send(200, result);
         return;
       }
 
@@ -1973,6 +2069,165 @@ export function createService(config, transport = fetch) {
         return;
       }
 
+      if (route === "GET /api/account/bindings") {
+        const accountId = await resolveAccountId(session);
+        if (!accountId) throw fail(400, "当前会话缺少账号");
+        const bindings = await accounts.listBindings(accountId);
+        send(200, {
+          account_id: accountId,
+          bindings: bindings.map((b) => ({
+            provider: b.provider,
+            provider_uid: b.provider_uid,
+            created_at: b.created_at,
+          })),
+        });
+        return;
+      }
+
+      if (route === "POST /api/account/bindings") {
+        const data = await body(req);
+        const accountId = await resolveAccountId(session);
+        if (!accountId) throw fail(400, "当前会话缺少账号");
+        const reauth = String(data.reauth_token ?? "");
+        const step = stepUpTokens.get(reauth);
+        const reauthOk =
+          Boolean(step) &&
+          step.account_id === accountId &&
+          step.expires_at > Date.now();
+        if (reauthOk) stepUpTokens.delete(reauth);
+        const binding = await accounts.bindIdentity(
+          accountId,
+          {
+            provider: data.provider,
+            provider_uid: data.provider_uid ?? data.target ?? data.identifier,
+            sub: data.sub,
+          },
+          { reauthOk },
+        );
+        send(200, { ok: true, binding });
+        return;
+      }
+
+      if (route === "DELETE /api/account/bindings") {
+        const data = await body(req);
+        const accountId = await resolveAccountId(session);
+        if (!accountId) throw fail(400, "当前会话缺少账号");
+        const reauth = String(data.reauth_token ?? "");
+        const step = stepUpTokens.get(reauth);
+        const reauthOk =
+          Boolean(step) &&
+          step.account_id === accountId &&
+          step.expires_at > Date.now();
+        if (reauthOk) stepUpTokens.delete(reauth);
+        await accounts.unbindIdentity(
+          accountId,
+          data.provider,
+          data.provider_uid ?? data.target ?? data.identifier,
+          { reauthOk },
+        );
+        send(200, { ok: true });
+        return;
+      }
+
+      if (route === "POST /api/account/delete") {
+        const data = await body(req);
+        const accountId = await resolveAccountId(session);
+        if (!accountId) throw fail(400, "当前会话缺少账号");
+        if (!data.acknowledge_consequences && !data.acknowledged) {
+          throw fail(400, "请先阅读并确认注销后果说明");
+        }
+        const verified =
+          data.verified === true ||
+          Boolean(data.reauth_token && stepUpTokens.get(String(data.reauth_token)));
+        if (data.reauth_token) {
+          const step = stepUpTokens.get(String(data.reauth_token));
+          if (!step || step.account_id !== accountId || step.expires_at <= Date.now()) {
+            throw fail(401, "未完成身份验证，不能注销");
+          }
+          stepUpTokens.delete(String(data.reauth_token));
+        }
+        const openOrders = await billing.openItems(accountId);
+        const balance = await billing.getBalance(accountId);
+        const blockers = [];
+        if (openOrders.length) blockers.push(`未完成订单 ${openOrders.length} 笔`);
+        if (balance.remaining_tokens > 0 && data.force_forfeit !== true) {
+          blockers.push(`仍有剩余额度 ${balance.remaining_tokens} token，确认放弃请传 force_forfeit`);
+        }
+        const deleted = await accounts.deleteAccount(accountId, {
+          verified,
+          blockers: data.force_forfeit === true ? [] : blockers,
+        });
+        revokeAllSessionsForAccount(accountId, session.sub);
+        send(200, {
+          ok: true,
+          deleted_at: deleted.deleted_at,
+          anonymized: deleted.anonymized,
+        });
+        return;
+      }
+
+      if (route === "GET /api/account/deletion-notice") {
+        send(200, {
+          title: "账号注销后果说明",
+          consequences: [
+            "注销后无法再用密码、验证码或 Chat 授权登录原账号",
+            "个人资料将匿名化；云端项目与用量记录按规则删除或匿名保留",
+            "未完成订单与剩余额度须先处理或明确放弃",
+            "注销前已签发的会话与 Bot 令牌全部失效",
+          ],
+          product_code: PRODUCT_CODE,
+        });
+        return;
+      }
+
+      if (route === "GET /api/billing/packages") {
+        send(200, {
+          product_code: PRODUCT_CODE,
+          packages: billing.listPackages(),
+          unit: "token",
+        });
+        return;
+      }
+
+      if (route === "GET /api/billing/balance") {
+        const accountId = await resolveAccountId(session);
+        if (!accountId) throw fail(400, "当前会话缺少账号");
+        const balance = await billing.getBalance(accountId);
+        send(200, { ...balance, unit: "token" });
+        return;
+      }
+
+      if (route === "GET /api/billing/ledger") {
+        const accountId = await resolveAccountId(session);
+        if (!accountId) throw fail(400, "当前会话缺少账号");
+        const entries = await billing.listEntries(accountId);
+        send(200, {
+          account_id: accountId,
+          unit: "token",
+          entries,
+          // API keeps exact integers; clients format for display.
+        });
+        return;
+      }
+
+      if (route === "POST /api/billing/orders") {
+        const data = await body(req);
+        const accountId = await resolveAccountId(session);
+        if (!accountId) throw fail(400, "当前会话缺少账号");
+        const order = await billing.createOrder(
+          accountId,
+          data.package_id ?? data.packageId,
+          data.channel ?? "mock",
+        );
+        send(200, {
+          ok: true,
+          order,
+          // Frontend redirect is not credit; wait for payment callback.
+          credit_rule: "payment_callback_only",
+        });
+        return;
+      }
+
       if (route === "POST /api/ai/text") {
         if (!session.grants.ai) throw fail(403, "AI 未授权");
         const data = await body(req);
@@ -2068,6 +2323,143 @@ export function createService(config, transport = fetch) {
         });
         return;
       }
+
+      if (route === "POST /api/ai/image-edit") {
+        if (!session.grants.ai) throw fail(403, "AI 未授权");
+        const data = await body(req);
+        const prompt = data.prompt;
+        const image = data.image ?? data.input_image;
+        if (typeof prompt !== "string" || !prompt.trim() || prompt.length > 4000) {
+          throw fail(400, "提示词无效");
+        }
+        if (typeof image !== "string" || !image.startsWith("data:image/") || image.length > 12_000_000) {
+          throw fail(400, "输入图像无效；请提供当前图层或选区的 PNG data URL");
+        }
+        const scope = String(data.scope ?? "selection");
+        if (!["selection", "layer"].includes(scope)) throw fail(400, "输入范围无效");
+        const documentRevision = data.document_revision ?? data.revision ?? null;
+        const { models, defaultModel } = buildModelCatalog();
+        const requestedModelId = String(data.model ?? data.model_id ?? defaultModel).trim();
+        const selectedModel = models.find(
+          (item) => item.id === requestedModelId || item.model_id === requestedModelId,
+        );
+        if (!selectedModel) throw fail(400, "所选 AI 模型不在受控模型目录中");
+        const allowedOrigins = resolveAllowedHubOrigins();
+        const regionalOrigin =
+          (selectedModel.region === "cn"
+            ? config.hubCnOrigin ?? config.hubOrigins?.cn
+            : config.hubGlobalOrigin ?? config.hubOrigins?.global) ?? config.hubOrigin;
+        if (!regionalOrigin || !config.hubKey) throw fail(503, "AI 模型服务尚未配置");
+        const targetOrigin = httpsOrigin(regionalOrigin);
+        if (!allowedOrigins.has(targetOrigin)) {
+          throw fail(403, "AI 模型服务路由地址未受信任");
+        }
+        const request_id = data.request_id ?? randomUUID();
+        if (
+          typeof request_id !== "string" ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(request_id)
+        ) {
+          throw fail(400, "请求 ID 无效");
+        }
+        res.setHeader("X-Request-Id", request_id);
+        const record = await receipts.begin(
+          owner(session),
+          request_id,
+          targetOrigin,
+          selectedModel.model_id,
+          `[image-edit:${scope}] ${prompt}`,
+        );
+        let previewImage = null;
+        let billingResult = null;
+        try {
+          const response = await transport(`${targetOrigin}/v1/images/edits`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${config.hubKey}`,
+              "Content-Type": "application/json",
+              "X-Request-Id": request_id,
+              "X-Bgssai-Product": PRODUCT_HEADER,
+              "X-Bgssai-Model": selectedModel.model_id,
+              "X-Bgssai-Region": selectedModel.region,
+            },
+            body: JSON.stringify({
+              model: selectedModel.model_id,
+              prompt,
+              image,
+              response_format: "b64_json",
+            }),
+            redirect: "error",
+            signal: AbortSignal.timeout(60000),
+          });
+          if (!response.ok) {
+            // Fallback: ask chat-completions style multimodal endpoint used by some hubs.
+            const alt = await transport(`${targetOrigin}/v1/chat/completions`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${config.hubKey}`,
+                "Content-Type": "application/json",
+                "X-Request-Id": request_id,
+                "X-Bgssai-Product": PRODUCT_HEADER,
+                "X-Bgssai-Model": selectedModel.model_id,
+                "X-Bgssai-Region": selectedModel.region,
+              },
+              body: JSON.stringify({
+                model: selectedModel.model_id,
+                messages: [
+                  {
+                    role: "user",
+                    content: [
+                      { type: "text", text: `Image edit request (${scope}): ${prompt}` },
+                      { type: "image_url", image_url: { url: image } },
+                    ],
+                  },
+                ],
+                max_tokens: 256,
+                stream: false,
+              }),
+              redirect: "error",
+              signal: AbortSignal.timeout(60000),
+            });
+            if (!alt.ok) throw fail(502, "AI 模型服务请求失败，请稍后重试");
+            const completion = await alt.json();
+            const content = completion.choices?.[0]?.message?.content;
+            if (typeof content === "string" && content.startsWith("data:image/")) {
+              previewImage = content;
+            } else {
+              // Deterministic local preview placeholder is never claimed as success apply.
+              throw fail(502, "AI 模型服务未返回可预览图像");
+            }
+          } else {
+            const payload = await response.json();
+            const b64 = payload.data?.[0]?.b64_json ?? payload.b64_json;
+            if (typeof b64 !== "string" || !b64) throw fail(502, "AI 模型服务返回无效图像");
+            previewImage = `data:image/png;base64,${b64}`;
+          }
+        } catch (error) {
+          if (error.status) throw error;
+          throw fail(502, "AI 模型服务请求失败，请稍后重试");
+        } finally {
+          billingResult = await receipts.refresh(record);
+        }
+        if (!session.grants.ai || !sessions.has(token)) throw fail(403, "AI 授权已撤销");
+        send(200, {
+          ok: true,
+          status: "preview",
+          applied: false,
+          scope,
+          document_revision: documentRevision,
+          preview_image: previewImage,
+          model: selectedModel.model_id,
+          model_id: selectedModel.model_id,
+          region: selectedModel.region,
+          product_code: PRODUCT_CODE,
+          request_id,
+          billing: billingResult,
+          note: "结果仅供预览；客户端确认后才可应用到图层，且须校验文档版本。",
+        });
+        return;
+      }
+
       throw fail(404, "接口不存在");
     } catch (error) {
       if (!res.headersSent) {
@@ -2136,6 +2528,8 @@ if (
     hubCnOrigin: properties["hub.cn.url"],
     hubGlobalOrigin: properties["hub.global.url"],
     supportBridgeSecret: process.env.COMPOSITOR_SUPPORT_BRIDGE_SECRET,
+    otpDelivery: process.env.COMPOSITOR_OTP_DELIVERY ?? "none",
+    paymentCallbackSecret: process.env.COMPOSITOR_PAYMENT_CALLBACK_SECRET,
   });
   server.listen(Number(properties["service.port"] ?? 8787), "127.0.0.1", () =>
     console.log(`Compositor ${environment} service listening on loopback`),

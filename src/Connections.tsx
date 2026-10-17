@@ -7,7 +7,14 @@ import {
 } from "./platform";
 import { parseProject } from "./project";
 import type { Editor } from "./engine";
-import { priceLabel, usageLabel, type ModelPrice, type UsageReceipt } from "./usage";
+import {
+  priceLabel,
+  usageLabel,
+  tokenSpanProps,
+  type ModelPrice,
+  type UsageReceipt,
+} from "./usage";
+import { formatCompactTokens, formatExactTokens } from "./tokens";
 
 export type Grants = { sync: boolean; ai: boolean; bot: boolean };
 export type Session = {
@@ -15,6 +22,7 @@ export type Session = {
   name: string;
   user_id?: string;
   auth_channel?: string;
+  account_id?: string;
   grants: Grants;
 };
 export type ModelItem = {
@@ -51,6 +59,14 @@ export function Connections({
   const [current, setCurrent] = useState(session);
   const [waiting, setWaiting] = useState(!!pending);
   const [busy, setBusy] = useState(false);
+  const [channels, setChannels] = useState<string[]>(["local", "chat"]);
+  const [unavailable, setUnavailable] = useState<Array<{ channel: string; reason: string }>>([
+    { channel: "verification_code", reason: "真实短信或邮件通道尚未配置，暂未启用" },
+    { channel: "wechat", reason: "真实发送或第三方身份校验尚未接入，暂未启用" },
+    { channel: "alipay", reason: "真实发送或第三方身份校验尚未接入，暂未启用" },
+    { channel: "douyin", reason: "真实发送或第三方身份校验尚未接入，暂未启用" },
+    { channel: "baidu", reason: "真实发送或第三方身份校验尚未接入，暂未启用" },
+  ]);
   const [authChannel, setAuthChannel] = useState<
     | "chat"
     | "local"
@@ -60,14 +76,28 @@ export function Connections({
     | "douyin"
     | "baidu"
   >("chat");
+  const [otpChannel, setOtpChannel] = useState<"email" | "phone">("email");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [challengeId, setChallengeId] = useState("");
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [prompt, setPrompt] = useState("");
   const [answer, setAnswer] = useState("");
   const [botToken, setBotToken] = useState("");
   const [models, setModels] = useState<(ModelItem & ModelPrice)[]>([]);
   const [usage, setUsage] = useState<UsageReceipt[]>([]);
+  const [bindings, setBindings] = useState<Array<{ provider: string; provider_uid: string }>>([]);
+  const [balance, setBalance] = useState<{
+    remaining_tokens: number;
+    package_name: string;
+    expires_at: number | null;
+  } | null>(null);
+  const [packages, setPackages] = useState<Array<{ package_id: string; name: string; tokens: number; kind: string }>>([]);
+  const [ledger, setLedger] = useState<Array<{ entry_id: string; type: string; tokens: number; balance_after: number }>>([]);
+  const [deletionNotice, setDeletionNotice] = useState<string[]>([]);
+  const [ackDelete, setAckDelete] = useState(false);
+  const [reauthToken, setReauthToken] = useState("");
   const aiRequest = useRef<{ prompt: string; model: string; id: string } | null>(null);
   const mounted = useRef(true);
   const operation = async (fn: () => Promise<void>) => {
@@ -86,9 +116,33 @@ export function Connections({
       .then((loaded) => {
         if (!mounted.current) return;
         setConfig(loaded);
-
       })
       .catch((e) => message(formatServiceError(e.message), true));
+    void request("auth/channels", "GET")
+      .then((result) => {
+        if (!mounted.current) return;
+        setChannels(result.channels ?? ["local", "chat"]);
+        const nextUnavailable = Array.isArray(result.unavailable)
+          ? result.unavailable
+          : [];
+        // Keep known offline-unavailable channels visible when the service omits them.
+        const known = new Set(nextUnavailable.map((item: { channel: string }) => item.channel));
+        const defaults = [
+          "verification_code",
+          "wechat",
+          "alipay",
+          "douyin",
+          "baidu",
+        ].filter((channel) => !(result.channels ?? []).includes(channel) && !known.has(channel));
+        setUnavailable([
+          ...nextUnavailable,
+          ...defaults.map((channel) => ({
+            channel,
+            reason: "真实发送或第三方身份校验尚未接入，暂未启用",
+          })),
+        ]);
+      })
+      .catch(() => {});
     return () => {
       mounted.current = false;
     };
@@ -125,7 +179,15 @@ export function Connections({
     };
   }, [waiting, message]);
   useEffect(() => {
-    if (!current) { setModels([]); setUsage([]); return; }
+    if (!current) {
+      setModels([]);
+      setUsage([]);
+      setBindings([]);
+      setBalance(null);
+      setPackages([]);
+      setLedger([]);
+      return;
+    }
     let cancelled = false;
     const load = async () => {
       const records = await request("ai/usage", "GET", undefined, current.token);
@@ -134,14 +196,42 @@ export function Connections({
         const catalog = await request("ai/models", "GET", undefined, current.token);
         if (!cancelled) {
           setModels(catalog.models);
-          setSelectedModel((selected) => catalog.models.some((model: ModelItem) => model.model_id === selected)
-            ? selected : catalog.default_model);
+          setSelectedModel((selected) =>
+            catalog.models.some((model: ModelItem) => model.model_id === selected)
+              ? selected
+              : catalog.default_model,
+          );
         }
+      }
+      try {
+        const bound = await request("account/bindings", "GET", undefined, current.token);
+        if (!cancelled) setBindings(bound.bindings ?? []);
+      } catch {
+        /* bindings optional for legacy sessions */
+      }
+      try {
+        const bal = await request("billing/balance", "GET", undefined, current.token);
+        if (!cancelled) setBalance(bal);
+        const pkgs = await request("billing/packages", "GET", undefined, current.token);
+        if (!cancelled) setPackages(pkgs.packages ?? []);
+        const led = await request("billing/ledger", "GET", undefined, current.token);
+        if (!cancelled) setLedger(led.entries ?? []);
+      } catch {
+        /* billing may be unavailable for sessions without account_id */
+      }
+      try {
+        const notice = await request("account/deletion-notice", "GET", undefined, current.token);
+        if (!cancelled) setDeletionNotice(notice.consequences ?? []);
+      } catch {
+        /* ignore */
       }
     };
     void load().catch(() => {});
     const timer = setInterval(() => void load().catch(() => {}), 60000);
-    return () => { cancelled = true; clearInterval(timer); };
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
   }, [current]);
   const changeGrant = (key: keyof Grants, value: boolean) =>
     void operation(async () => {
@@ -187,7 +277,14 @@ export function Connections({
               >
                 <option value="chat">Chat 授权登录 (PKCE)</option>
                 <option value="local">本地账号密码登录 / 注册</option>
-                <option disabled value="verification_code">未启用：手机 / 邮箱验证码登录</option>
+                <option
+                  value="verification_code"
+                  disabled={!channels.includes("verification_code")}
+                >
+                  {channels.includes("verification_code")
+                    ? "手机 / 邮箱验证码登录"
+                    : "未启用：手机 / 邮箱验证码登录"}
+                </option>
                 <option disabled value="wechat">未启用：微信登录 (wechat)</option>
                 <option disabled value="alipay">未启用：支付宝登录 (alipay)</option>
                 <option disabled value="douyin">未启用：抖音登录 (douyin)</option>
@@ -258,7 +355,90 @@ export function Connections({
                 </div>
               </>
             )}
-            <p role="status">手机/邮箱验证码及微信、支付宝、抖音、百度登录暂未启用，请使用账号密码或 Chat 授权登录。</p>
+            {authChannel === "verification_code" && channels.includes("verification_code") && (
+              <>
+                <label className="form-label">
+                  验证码渠道
+                  <select
+                    aria-label="验证码渠道"
+                    value={otpChannel}
+                    disabled={busy}
+                    onChange={(e) => setOtpChannel(e.target.value as "email" | "phone")}
+                  >
+                    <option value="email">邮箱</option>
+                    <option value="phone">手机</option>
+                  </select>
+                </label>
+                <label className="form-label">
+                  {otpChannel === "email" ? "邮箱" : "手机号"}
+                  <input
+                    aria-label={otpChannel === "email" ? "登录邮箱" : "登录手机号"}
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                  />
+                </label>
+                <div className="connection-actions">
+                  <button
+                    disabled={busy || !config["ecosystem.url"] || !identifier.trim()}
+                    onClick={() =>
+                      void operation(async () => {
+                        const result = await request("auth/code/send", "POST", {
+                          channel: otpChannel,
+                          target: identifier.trim(),
+                          purpose: "login",
+                        });
+                        setChallengeId(result.challenge_id);
+                        setOtpCode("");
+                        message(`验证码已发送至 ${result.target_masked}`);
+                      })
+                    }
+                  >
+                    发送验证码
+                  </button>
+                </div>
+                <label className="form-label">
+                  验证码
+                  <input
+                    aria-label="登录验证码"
+                    value={otpCode}
+                    inputMode="numeric"
+                    maxLength={6}
+                    onChange={(e) => setOtpCode(e.target.value)}
+                  />
+                </label>
+                <button
+                  className="primary"
+                  disabled={
+                    busy ||
+                    !config["ecosystem.url"] ||
+                    !challengeId ||
+                    otpCode.trim().length !== 6
+                  }
+                  onClick={() =>
+                    void operation(async () => {
+                      const result = await request("auth/code/login", "POST", {
+                        channel: otpChannel,
+                        target: identifier.trim(),
+                        challenge_id: challengeId,
+                        code: otpCode.trim(),
+                        purpose: "login",
+                      });
+                      adoptSession(result.session);
+                      setChallengeId("");
+                      setOtpCode("");
+                      message("验证码登录成功");
+                    })
+                  }
+                >
+                  验证码登录
+                </button>
+              </>
+            )}
+            <p role="status">
+              {unavailable.length
+                ? `暂未启用：${unavailable.map((u) => u.channel).join("、")}。可用：${channels.join("、")}。`
+                : `可用登录方式：${channels.join("、")}。`}
+            </p>
             <button
               className="primary"
               disabled={busy || waiting || !config["ecosystem.url"]}
@@ -453,9 +633,19 @@ export function Connections({
             </button>
             <details>
               <summary>用量与实扣（{usage.length} 条）</summary>
-              {usage.map((value) => <p key={`${value.hub}/${value.request_id}`}>
-                {value.model} · {usageLabel(value)}<br />{value.hub} / {value.request_id}
-              </p>)}
+              {usage.map((value) => {
+                const billed = tokenSpanProps(value.billed_tokens);
+                return (
+                  <p key={`${value.hub}/${value.request_id}`}>
+                    {value.model} · {usageLabel(value)}
+                    <br />
+                    实扣展示：{" "}
+                    <span title={billed.title}>{billed.children}</span>
+                    <br />
+                    {value.hub} / {value.request_id}
+                  </p>
+                );
+              })}
             </details>
             {answer && (
               <>
@@ -475,6 +665,170 @@ export function Connections({
                 </button>
               </>
             )}
+            <details open>
+              <summary>额度套餐（token）</summary>
+              {balance ? (
+                <p>
+                  当前套餐：{balance.package_name}
+                  <br />
+                  剩余额度：{" "}
+                  <span title={formatExactTokens(balance.remaining_tokens)}>
+                    {formatCompactTokens(balance.remaining_tokens)}
+                  </span>
+                  {balance.expires_at
+                    ? ` · 到期 ${new Date(balance.expires_at).toLocaleString()}`
+                    : ""}
+                </p>
+              ) : (
+                <p>尚未开通套餐</p>
+              )}
+              <div className="connection-actions">
+                {packages.map((pkg) => (
+                  <button
+                    key={pkg.package_id}
+                    disabled={busy}
+                    onClick={() =>
+                      void operation(async () => {
+                        const order = await request(
+                          "billing/orders",
+                          "POST",
+                          { package_id: pkg.package_id, channel: "mock" },
+                          current.token,
+                        );
+                        message(
+                          `已创建订单 ${order.order.out_trade_no}（${pkg.name}）。额度仅在支付回调成功后入账，前端跳转不算入账。`,
+                        );
+                      })
+                    }
+                  >
+                    {pkg.kind === "topup" ? "加量" : "开通/续费"} {pkg.name}（
+                    <span title={formatExactTokens(pkg.tokens)}>
+                      {formatCompactTokens(pkg.tokens)}
+                    </span>
+                    ）
+                  </button>
+                ))}
+              </div>
+              <details>
+                <summary>额度流水（接口为精确整数）</summary>
+                {ledger.length ? (
+                  ledger.map((entry) => (
+                    <p key={entry.entry_id}>
+                      {entry.type} ·{" "}
+                      <span title={formatExactTokens(entry.tokens)}>
+                        {formatCompactTokens(entry.tokens)}
+                      </span>
+                      → 余额{" "}
+                      <span title={formatExactTokens(entry.balance_after)}>
+                        {formatCompactTokens(entry.balance_after)}
+                      </span>
+                    </p>
+                  ))
+                ) : (
+                  <p>暂无流水</p>
+                )}
+              </details>
+            </details>
+            <details>
+              <summary>登录方式绑定（{bindings.length}）</summary>
+              {bindings.length ? (
+                bindings.map((b) => (
+                  <p key={`${b.provider}:${b.provider_uid}`}>
+                    {b.provider} · {b.provider_uid}{" "}
+                    <button
+                      disabled={busy || bindings.length <= 1}
+                      onClick={() =>
+                        void operation(async () => {
+                          if (!reauthToken) {
+                            throw new Error("请先完成敏感操作身份验证（发送并校验验证码，用途 reauth）");
+                          }
+                          await request(
+                            "account/bindings",
+                            "DELETE",
+                            {
+                              provider: b.provider,
+                              provider_uid: b.provider_uid,
+                              reauth_token: reauthToken,
+                            },
+                            current.token,
+                          );
+                          setReauthToken("");
+                          const bound = await request(
+                            "account/bindings",
+                            "GET",
+                            undefined,
+                            current.token,
+                          );
+                          setBindings(bound.bindings ?? []);
+                          message("已解绑该登录方式");
+                        })
+                      }
+                    >
+                      解绑
+                    </button>
+                  </p>
+                ))
+              ) : (
+                <p>暂无绑定记录</p>
+              )}
+              <p>绑定/解绑需重新验证身份。最后一种登录方式不可解绑。</p>
+              <label className="form-label">
+                重新验证令牌（reauth_token）
+                <input
+                  aria-label="重新验证令牌"
+                  value={reauthToken}
+                  onChange={(e) => setReauthToken(e.target.value)}
+                />
+              </label>
+            </details>
+            <details>
+              <summary>账号注销</summary>
+              <p>注销后无法再用任何方式登录原账号；个人数据按下列规则处理：</p>
+              <ul>
+                {deletionNotice.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+              <label className="grant">
+                <input
+                  type="checkbox"
+                  checked={ackDelete}
+                  onChange={(e) => setAckDelete(e.target.checked)}
+                />
+                我已阅读并确认注销后果
+              </label>
+              <button
+                disabled={busy || !ackDelete}
+                onClick={() =>
+                  void operation(async () => {
+                    if (!reauthToken) {
+                      throw new Error("注销前须完成身份验证并填入 reauth_token");
+                    }
+                    await request(
+                      "account/delete",
+                      "POST",
+                      {
+                        acknowledge_consequences: true,
+                        reauth_token: reauthToken,
+                        verified: true,
+                      },
+                      current.token,
+                    );
+                    session = null;
+                    cloudETag = null;
+                    setCurrent(null);
+                    setBotToken("");
+                    setAnswer("");
+                    setAckDelete(false);
+                    setReauthToken("");
+                    aiRequest.current = null;
+                    message("账号已注销，所有凭证已失效");
+                  })
+                }
+              >
+                确认注销账号
+              </button>
+            </details>
             <button
               disabled={busy}
               onClick={() =>
