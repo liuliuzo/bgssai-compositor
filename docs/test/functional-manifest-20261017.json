@@ -43,6 +43,60 @@
       "file": "docs/test/TC-opc-product-20261017.md"
     },
     {
+      "id": "REQ-COMPOSITOR-PRODUCT-005",
+      "title": "选区与内容识别填充",
+      "cases": [
+        "TC-COMPOSITOR-PRODUCT-005-P",
+        "TC-COMPOSITOR-PRODUCT-005-N"
+      ],
+      "file": "docs/test/TC-opc-product-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-PRODUCT-006",
+      "title": "蒙版与混合模式",
+      "cases": [
+        "TC-COMPOSITOR-PRODUCT-006-P",
+        "TC-COMPOSITOR-PRODUCT-006-N"
+      ],
+      "file": "docs/test/TC-opc-product-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-PRODUCT-007",
+      "title": "绘画修饰与文字形状",
+      "cases": [
+        "TC-COMPOSITOR-PRODUCT-007-P",
+        "TC-COMPOSITOR-PRODUCT-007-N"
+      ],
+      "file": "docs/test/TC-opc-product-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-PRODUCT-008",
+      "title": "调整图层与滤镜",
+      "cases": [
+        "TC-COMPOSITOR-PRODUCT-008-P",
+        "TC-COMPOSITOR-PRODUCT-008-N"
+      ],
+      "file": "docs/test/TC-opc-product-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-PRODUCT-009",
+      "title": "裁剪变换与尺寸",
+      "cases": [
+        "TC-COMPOSITOR-PRODUCT-009-P",
+        "TC-COMPOSITOR-PRODUCT-009-N"
+      ],
+      "file": "docs/test/TC-opc-product-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-PRODUCT-010",
+      "title": "多格式导入与PSD兼容",
+      "cases": [
+        "TC-COMPOSITOR-PRODUCT-010-P",
+        "TC-COMPOSITOR-PRODUCT-010-N"
+      ],
+      "file": "docs/test/TC-opc-product-20261017.md"
+    },
+    {
       "id": "REQ-COMPOSITOR-COMMON-001",
       "title": "自助注册与本地账号",
       "cases": [
@@ -174,6 +228,42 @@
       "cases": [
         "TC-COMPOSITOR-COMMON-015-P",
         "TC-COMPOSITOR-COMMON-015-N"
+      ],
+      "file": "docs/test/TC-opc-common-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-COMMON-016",
+      "title": "账号注销",
+      "cases": [
+        "TC-COMPOSITOR-COMMON-016-P",
+        "TC-COMPOSITOR-COMMON-016-N"
+      ],
+      "file": "docs/test/TC-opc-common-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-COMMON-017",
+      "title": "登录方式绑定与解绑",
+      "cases": [
+        "TC-COMPOSITOR-COMMON-017-P",
+        "TC-COMPOSITOR-COMMON-017-N"
+      ],
+      "file": "docs/test/TC-opc-common-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-COMMON-018",
+      "title": "额度套餐开通与续费",
+      "cases": [
+        "TC-COMPOSITOR-COMMON-018-P",
+        "TC-COMPOSITOR-COMMON-018-N"
+      ],
+      "file": "docs/test/TC-opc-common-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-COMMON-019",
+      "title": "额度按token计量显示",
+      "cases": [
+        "TC-COMPOSITOR-COMMON-019-P",
+        "TC-COMPOSITOR-COMMON-019-N"
       ],
       "file": "docs/test/TC-opc-common-20261017.md"
     },
@@ -321,6 +411,90 @@
     {
       "id": "TC-COMPOSITOR-PRODUCT-004-N",
       "requirement": "REQ-COMPOSITOR-PRODUCT-004",
+      "file": "TC-opc-product-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-005-P",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-005",
+      "file": "TC-opc-product-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-005-N",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-005",
+      "file": "TC-opc-product-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-006-P",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-006",
+      "file": "TC-opc-product-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-006-N",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-006",
+      "file": "TC-opc-product-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-007-P",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-007",
+      "file": "TC-opc-product-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-007-N",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-007",
+      "file": "TC-opc-product-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-008-P",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-008",
+      "file": "TC-opc-product-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-008-N",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-008",
+      "file": "TC-opc-product-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-009-P",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-009",
+      "file": "TC-opc-product-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-009-N",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-009",
+      "file": "TC-opc-product-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-010-P",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-010",
+      "file": "TC-opc-product-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-010-N",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-010",
       "file": "TC-opc-product-20261017.md",
       "status": "待测",
       "kind": "N"
@@ -536,6 +710,62 @@
       "kind": "N"
     },
     {
+      "id": "TC-COMPOSITOR-COMMON-016-P",
+      "requirement": "REQ-COMPOSITOR-COMMON-016",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-016-N",
+      "requirement": "REQ-COMPOSITOR-COMMON-016",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-017-P",
+      "requirement": "REQ-COMPOSITOR-COMMON-017",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-017-N",
+      "requirement": "REQ-COMPOSITOR-COMMON-017",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-018-P",
+      "requirement": "REQ-COMPOSITOR-COMMON-018",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-018-N",
+      "requirement": "REQ-COMPOSITOR-COMMON-018",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-019-P",
+      "requirement": "REQ-COMPOSITOR-COMMON-019",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-019-N",
+      "requirement": "REQ-COMPOSITOR-COMMON-019",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
       "id": "TC-COMPOSITOR-PLATFORM-001-P",
       "requirement": "REQ-COMPOSITOR-PLATFORM-001",
       "file": "TC-opc-platform-20261017.md",
@@ -733,7 +963,7 @@
   ],
   "historical_suites": [],
   "progress": {
-    "待测": 58,
+    "待测": 78,
     "通过": 0,
     "失败": 0,
     "阻塞": 0,
@@ -748,7 +978,7 @@
       "不适用": 0
     },
     "TC-opc-common-20261017.md": {
-      "待测": 30,
+      "待测": 38,
       "通过": 0,
       "失败": 0,
       "阻塞": 0,
@@ -762,7 +992,7 @@
       "不适用": 0
     },
     "TC-opc-product-20261017.md": {
-      "待测": 8,
+      "待测": 20,
       "通过": 0,
       "失败": 0,
       "阻塞": 0,

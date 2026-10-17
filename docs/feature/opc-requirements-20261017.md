@@ -20,6 +20,12 @@ PS式图像编辑软件，当前Windows PC为起点，最终覆盖五端；规�
 | REQ-COMPOSITOR-PRODUCT-002 | 工程保存恢复 | 编辑工程可保存并重新打开，保留图层、尺寸、透明度和可编辑信息。 | 图层和画布还原，副本可独立编辑；原文件不被无提示覆盖。 异常：提示未保存或恢复限制；不破坏最后有效文件。 | [TC-COMPOSITOR-PRODUCT-002-P / TC-COMPOSITOR-PRODUCT-002-N](../test/TC-opc-product-20261017.md) |
 | REQ-COMPOSITOR-PRODUCT-003 | 图像导出 | 支持按已声明格式、尺寸和透明度导出，结果可由外部查看器打开。 | 文件可读，内容与画布一致；不支持透明的格式有明确处理。 异常：明确失败，不输出伪成功空文件，不覆盖无权文件。 | [TC-COMPOSITOR-PRODUCT-003-P / TC-COMPOSITOR-PRODUCT-003-N](../test/TC-opc-product-20261017.md) |
 | REQ-COMPOSITOR-PRODUCT-004 | AI编辑与回执 | 已支持AI能力以当前图层或选区为输入，结果预览确认后应用，保留模型价格与任务回执。 | 输入范围与结果一致；用户能撤销；回执关联真实任务与用量。 异常：不覆盖错误文档、不应用未确认结果；失败不冒充成功。 | [TC-COMPOSITOR-PRODUCT-004-P / TC-COMPOSITOR-PRODUCT-004-N](../test/TC-opc-product-20261017.md) |
+| REQ-COMPOSITOR-PRODUCT-005 | 选区与内容识别填充 | 支持矩形、椭圆、套索、多边形套索和魔棒选区，以及加选、减选、扩展、收缩、羽化；可对选区执行内容识别填充。 | 选区边界与操作一致；填充和内容识别结果只作用于选区内；可撤销重做。 异常：明确提示没有可操作对象；超出部分按画布裁剪且不崩溃。 | [TC-COMPOSITOR-PRODUCT-005-P / TC-COMPOSITOR-PRODUCT-005-N](../test/TC-opc-product-20261017.md) |
+| REQ-COMPOSITOR-PRODUCT-006 | 蒙版与混合模式 | 图层支持不透明度、常用混合模式、图层蒙版和剪贴蒙版，蒙版可绘制、反相、羽化，也可停用。 | 合成效果与设置一致；蒙版可编辑且不破坏原图；重新打开后保持。 异常：拒绝无效操作；损坏数据给出提示并保留其余图层。 | [TC-COMPOSITOR-PRODUCT-006-P / TC-COMPOSITOR-PRODUCT-006-N](../test/TC-opc-product-20261017.md) |
+| REQ-COMPOSITOR-PRODUCT-007 | 绘画修饰与文字形状 | 提供画笔和橡皮擦（大小、硬度、不透明度）、仿制图章、污点修复、渐变、可编辑形状和文字图层（字体、字号、颜色、对齐）。 | 工具效果与参数一致；文字和形状保存后仍可编辑。 异常：缺失字体有替换提示；锁定图层拒绝绘制。 | [TC-COMPOSITOR-PRODUCT-007-P / TC-COMPOSITOR-PRODUCT-007-N](../test/TC-opc-product-20261017.md) |
+| REQ-COMPOSITOR-PRODUCT-008 | 调整图层与滤镜 | 支持色阶、曲线、色相饱和度、曝光、黑白等调整（可作为调整图层非破坏应用），以及高斯模糊、动感模糊、锐化、噪点等滤镜，并提供实时预览。 | 调整与滤镜效果正确，预览与结果一致；调整图层可随时修改或隐藏。 异常：资源不足时提示而不崩溃；取消后画面恢复原状。 | [TC-COMPOSITOR-PRODUCT-008-P / TC-COMPOSITOR-PRODUCT-008-N](../test/TC-opc-product-20261017.md) |
+| REQ-COMPOSITOR-PRODUCT-009 | 裁剪变换与尺寸 | 支持按比例裁剪、旋转与翻转、自由变换和透视变形，以及图像大小、画布大小和修整。 | 结果与参数一致；非破坏变换可反复调整且不降低原始分辨率。 异常：拒绝非法输入并提示上限；空裁剪不改变画布。 | [TC-COMPOSITOR-PRODUCT-009-P / TC-COMPOSITOR-PRODUCT-009-N](../test/TC-opc-product-20261017.md) |
+| REQ-COMPOSITOR-PRODUCT-010 | 多格式导入与PSD兼容 | 可导入JPEG、PNG、TIFF、WebP、HEIC、SVG和PSD；PSD的图层、蒙版、混合模式和简单文字按已声明范围保持可编辑，导入前显示转换报告；可导出PNG、JPEG、PDF，PSD导出按已确认范围。 | 声明范围内的内容可编辑；转换报告如实列出被栅格化或不支持的部分；导出文件可由外部软件打开。 异常：按已声明的限制提示或处理；损坏文件报错且不崩溃。 | [TC-COMPOSITOR-PRODUCT-010-P / TC-COMPOSITOR-PRODUCT-010-N](../test/TC-opc-product-20261017.md) |
 | REQ-COMPOSITOR-COMMON-001 | 自助注册与本地账号 | OPC 用户可自行注册使用产品；本地账号与 Chat 第三方账号按显式绑定关系关联，不静默合并同名用户。 | 注册无需平台管理员代办；登录身份正确；业务记录归属该用户，重开可读取。 异常：错误密码不签发会话；重复注册有明确提示；不同主体不会自动获取已有用户的数据。 | [TC-COMPOSITOR-COMMON-001-P / TC-COMPOSITOR-COMMON-001-N](../test/TC-opc-common-20261017.md) |
 | REQ-COMPOSITOR-COMMON-002 | 邮箱与手机验证码 | 邮箱验证码和手机验证码均可登录；验证码真实投递、限时、单次使用并绑定接收人及用途。 | 两种方式均能建立正确用户会话；投递与消费有可追踪记录，客户端不直接返回验证码。 异常：所有无效验证码均拒绝且不建立会话；达到限额后提示稍后重试；真实短信或邮件未就绪记阻塞。 | [TC-COMPOSITOR-COMMON-002-P / TC-COMPOSITOR-COMMON-002-N](../test/TC-opc-common-20261017.md) |
 | REQ-COMPOSITOR-COMMON-003 | 平台管理权限隔离 | 平台 admin 是内部后台账户，不开放注册、不接受用户侧第三方登录；业务组织成员仍属于 user 域。 | 管理员只凭内部管理身份访问管理功能；用户只访问授权的业务数据。 异常：不创建平台管理员；拒绝用户令牌越权；不得仅靠隐藏页面控制权限。 | [TC-COMPOSITOR-COMMON-003-P / TC-COMPOSITOR-COMMON-003-N](../test/TC-opc-common-20261017.md) |
@@ -35,6 +41,10 @@ PS式图像编辑软件，当前Windows PC为起点，最终覆盖五端；规�
 | REQ-COMPOSITOR-COMMON-013 | 语言与真实状态 | 用户端支持中英文，境内默认中文、境外默认英文；切换后主要业务、错误和法律入口保持一致，规划能力与已可用能力分开显示。 | 默认语言符合区域；切换后持久化；核心流程和错误可理解；法律文本可打开，未上线能力不显示已完成。 异常：显示失败、空状态或未发布说明，不用样例掩盖；公共法律入口不要求登录。 | [TC-COMPOSITOR-COMMON-013-P / TC-COMPOSITOR-COMMON-013-N](../test/TC-opc-common-20261017.md) |
 | REQ-COMPOSITOR-COMMON-014 | Bot下载与安装信息 | 所有应用提供 Bot 下载入口，平台、架构、版本和安装包状态真实可见；Bot制品不能冒充本应用制品。 | 下载得到对应系统真实安装包且能启动；未发布版本明确标注；应用安装包和 Bot 安装包分别标识。 异常：不返回伪成功或错误平台包；显示不可用及实际限制；下载入口不泄露内部存储凭据。 | [TC-COMPOSITOR-COMMON-014-P / TC-COMPOSITOR-COMMON-014-N](../test/TC-opc-common-20261017.md) |
 | REQ-COMPOSITOR-COMMON-015 | Bot最小授权托管 | 产品开放可被 Bot 调用的业务能力；用户明确授权后执行自己的业务任务，并可撤销。Support采用独立内部权限。 | 实际业务变化与指令一致，结果属于甲；记录授权范围、调用任务和结果；不凭文本回答认定已操作。 异常：越权与已撤销调用被拒绝；相同任务不重复产生业务副作用；内部权限不由用户授权提升。 | [TC-COMPOSITOR-COMMON-015-P / TC-COMPOSITOR-COMMON-015-N](../test/TC-opc-common-20261017.md) |
+| REQ-COMPOSITOR-COMMON-016 | 账号注销 | 用户可在本应用内自助注销账号：经身份验证并阅读后果说明后提交；注销后不能再用任何方式登录原账号，个人数据按已公布的规则删除或匿名化；iOS与Android客户端内同样提供入口。 | 注销可在应用内完成；三种方式都无法再进入原账号；个人数据处理结果符合公布的规则；移动端入口可达。 异常：未验证不注销；未结事项按已确认规则提示处理，不静默清除余额或订单；注销前的凭证全部失效。 | [TC-COMPOSITOR-COMMON-016-P / TC-COMPOSITOR-COMMON-016-N](../test/TC-opc-common-20261017.md) |
+| REQ-COMPOSITOR-COMMON-017 | 登录方式绑定与解绑 | 用户可在账号设置查看已绑定的手机、邮箱、区域第三方账号和Chat授权，并能绑定或解绑；同一第三方身份只能绑定一个本应用账号，且至少保留一种可用的登录方式。 | 绑定列表与实际一致；绑定后可用该方式进入同一账号；解绑后该方式不再进入此账号，其他方式不受影响。 异常：冲突绑定被拒绝且不合并账号；最后一种方式不可解绑；敏感变更需重新验证，失败时绑定关系不变。 | [TC-COMPOSITOR-COMMON-017-P / TC-COMPOSITOR-COMMON-017-N](../test/TC-opc-common-20261017.md) |
+| REQ-COMPOSITOR-COMMON-018 | 额度套餐开通与续费 | 用户在应用内可看到当前BGSSAI额度套餐、剩余额度与到期时间，并能进入开通、续费或加量入口；购买在已确认归属的账本完成（Chat中心账本或本应用账本），支付渠道按所属区域；额度以支付成功回调入账，不以前端跳转为准。 | 支付回调成功后额度与到期时间按套餐更新，应用内与账本显示一致；订单、支付流水与额度变动可相互追溯；任务按新额度扣减。 异常：未支付成功不增加额度；重复回调只入账一次；没有回调不入账；到期后按已确认规则限制或提示续费，未确认的规则记阻塞。 | [TC-COMPOSITOR-COMMON-018-P / TC-COMPOSITOR-COMMON-018-N](../test/TC-opc-common-20261017.md) |
+| REQ-COMPOSITOR-COMMON-019 | 额度按token计量显示 | 境内套餐额度、加量包、剩余额度和流水统一按真实token计量；界面用K、M、B紧凑写法且最多一位小数（如418.9M），中文界面同样不折算为“万”，悬停可见精确数；接口、导出、审计和日志保留精确整数，不再使用“点”。 | 界面显示418.9M，悬停显示418,912,345；中英文写法一致；导出与接口为精确整数。 异常：0与999按原数显示，1000显示为1K，超过10亿用B表示，前后端舍入规则一致；历史“点”数据按已确认的换算显示且不混用单位，换算未确认的产品记阻塞。 | [TC-COMPOSITOR-COMMON-019-P / TC-COMPOSITOR-COMMON-019-N](../test/TC-opc-common-20261017.md) |
 | REQ-COMPOSITOR-PLATFORM-001 | Windows核心交付 | 本产品在Windows提供独立可安装用户端；核心流程与服务端权限一致，移动端沿用原生界面要求。 | 制品可安装启动，名称与平台正确；不能用Bot安装包或仅有打包工程替代；业务结果持久化且与其他已授权端一致；保留实际设备和制品证据。 异常：网络和会话错误可恢复，无重复业务副作用；升级不丢已保存数据；缺真实设备/制品时记阻塞，不能标通过。 | [TC-COMPOSITOR-PLATFORM-001-P / TC-COMPOSITOR-PLATFORM-001-N](../test/TC-opc-platform-20261017.md) |
 | REQ-COMPOSITOR-PLATFORM-002 | macOS核心交付 | 本产品在macOS提供独立可安装用户端；核心流程与服务端权限一致，移动端沿用原生界面要求。 | 制品可安装启动，名称与平台正确；不能用Bot安装包或仅有打包工程替代；业务结果持久化且与其他已授权端一致；保留实际设备和制品证据。 异常：网络和会话错误可恢复，无重复业务副作用；升级不丢已保存数据；缺真实设备/制品时记阻塞，不能标通过。 | [TC-COMPOSITOR-PLATFORM-002-P / TC-COMPOSITOR-PLATFORM-002-N](../test/TC-opc-platform-20261017.md) |
 | REQ-COMPOSITOR-PLATFORM-003 | Linux核心交付 | 本产品在Linux提供独立可安装用户端；核心流程与服务端权限一致，移动端沿用原生界面要求。 | 制品可安装启动，名称与平台正确；不能用Bot安装包或仅有打包工程替代；业务结果持久化且与其他已授权端一致；保留实际设备和制品证据。 异常：网络和会话错误可恢复，无重复业务副作用；升级不丢已保存数据；缺真实设备/制品时记阻塞，不能标通过。 | [TC-COMPOSITOR-PLATFORM-003-P / TC-COMPOSITOR-PLATFORM-003-N](../test/TC-opc-platform-20261017.md) |
@@ -59,3 +69,18 @@ PS式图像编辑软件，当前Windows PC为起点，最终覆盖五端；规�
 ## 存量需求与追溯
 
 [需求文件覆盖索引](../test/REQUIREMENT-COVERAGE.md)列出原有需求、历史套件及本轮补充入口；[本轮逐需求矩阵](../test/TRACEABILITY-20261017.md)列出本文件所有验收项与正/负用例。覆盖索引属于测试设计导航，不是运行通过证明。
+
+## 2026-10-17 复核补充
+
+对照用户完整规划复核本轮需求后补充下列验收项；正反用例与其余用例同在对应用例文件，均为待测。依据：规划中各产品对标对象的核心能力；所有应用最终覆盖iOS/Android所需的应用内账号注销；多种登录方式并存所需的绑定与解绑；“所有应用有一个BGSSAI额度套餐”的开通与续费；用户2026-10-17确认的境内套餐额度按真实token计、按418.9M写法显示。
+
+- REQ-COMPOSITOR-PRODUCT-005（产品专项）：选区与内容识别填充
+- REQ-COMPOSITOR-PRODUCT-006（产品专项）：蒙版与混合模式
+- REQ-COMPOSITOR-PRODUCT-007（产品专项）：绘画修饰与文字形状
+- REQ-COMPOSITOR-PRODUCT-008（产品专项）：调整图层与滤镜
+- REQ-COMPOSITOR-PRODUCT-009（产品专项）：裁剪变换与尺寸
+- REQ-COMPOSITOR-PRODUCT-010（产品专项）：多格式导入与PSD兼容
+- REQ-COMPOSITOR-COMMON-016（共同契约）：账号注销
+- REQ-COMPOSITOR-COMMON-017（共同契约）：登录方式绑定与解绑
+- REQ-COMPOSITOR-COMMON-018（共同契约）：额度套餐开通与续费
+- REQ-COMPOSITOR-COMMON-019（共同契约）：额度按token计量显示
