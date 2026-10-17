@@ -576,6 +576,30 @@ svg {
   font-size: 10px;
   padding: 4px 7px;
 }
+.mask-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+.mask-actions button {
+  font-size: 10px;
+  padding: 4px 7px;
+  border-color: #3e4440;
+}
+.mask-actions label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #aab6a6;
+  font-size: 10px;
+}
+.font-warning {
+  margin: 8px 0 0;
+  color: #efb87a;
+  font-size: 10px;
+  line-height: 1.4;
+}
 .panel-tabs {
   display: flex;
   height: 43px;

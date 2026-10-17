@@ -18,19 +18,68 @@ export const BLENDS = [
 ] as const;
 export const FONTS = ["Segoe UI", "Arial", "Georgia", "Consolas"] as const;
 export type Blend = (typeof BLENDS)[number][0];
+export type TextAlign = "left" | "center" | "right";
+export type LayerKind = "raster" | "text" | "shape" | "adjustment";
+export type SelectionKind = "rect" | "ellipse" | "lasso" | "polygon" | "wand";
+export type SelectionMode = "replace" | "add" | "subtract";
+export type ShapeKind = "rectangle" | "ellipse" | "line" | "polygon";
+export type AdjustmentType =
+  | "levels"
+  | "curves"
+  | "hueSat"
+  | "exposure"
+  | "bw";
+
 export interface Adjustments {
   brightness: number;
   contrast: number;
   saturation: number;
   blur: number;
 }
+
+export interface AdjustmentLayerParams {
+  type: AdjustmentType;
+  /** Levels: black / mid / white (0–255, mid as gamma 0.1–9.9 scaled as 10–990). */
+  levelsBlack: number;
+  levelsMid: number;
+  levelsWhite: number;
+  /** Curves as 0–255 control points (input→output), length 2–16. */
+  curve: number[];
+  hue: number;
+  sat: number;
+  lightness: number;
+  exposure: number;
+  gamma: number;
+  bwAmount: number;
+}
+
 export interface TextContent {
   value: string;
   font: (typeof FONTS)[number];
   size: number;
   color: string;
   bold: boolean;
+  align?: TextAlign;
+  /** Set when the requested font was unavailable and a fallback was used. */
+  missingFont?: string;
 }
+
+export interface ShapeContent {
+  kind: ShapeKind;
+  fill: string;
+  stroke: string;
+  strokeWidth: number;
+  /** Local-space points for polygon/line; empty for rect/ellipse. */
+  points: { x: number; y: number }[];
+}
+
+export interface LayerMaskData {
+  image: string;
+  inverted: boolean;
+  feather: number;
+  disabled: boolean;
+}
+
 export interface LayerData {
   id: string;
   name: string;
@@ -48,7 +97,13 @@ export interface LayerData {
   adjustments: Adjustments;
   image: string;
   text?: TextContent;
+  shape?: ShapeContent;
+  kind?: LayerKind;
+  mask?: LayerMaskData;
+  clipToBelow?: boolean;
+  adjustment?: AdjustmentLayerParams;
 }
+
 export interface ProjectData {
   format: "bgssai-compositor";
   version: 1;
@@ -57,16 +112,34 @@ export interface ProjectData {
   height: number;
   layers: LayerData[];
 }
+
 export const MAX_DIMENSION = 8192;
 export const MAX_DOCUMENT_PIXELS = 16_777_216;
 export const MAX_LAYER_PIXELS = 48_000_000;
 export const MAX_LAYERS = 40;
 export const MAX_PROJECT_BYTES = 128 * 1024 * 1024;
+
 export const defaults = (): Adjustments => ({
   brightness: 0,
   contrast: 0,
   saturation: 0,
   blur: 0,
+});
+
+export const defaultAdjustment = (
+  type: AdjustmentType = "levels",
+): AdjustmentLayerParams => ({
+  type,
+  levelsBlack: 0,
+  levelsMid: 100,
+  levelsWhite: 255,
+  curve: [0, 64, 128, 192, 255],
+  hue: 0,
+  sat: 0,
+  lightness: 0,
+  exposure: 0,
+  gamma: 1,
+  bwAmount: 100,
 });
 
 export function checkDimensions(width: number, height: number) {
@@ -136,6 +209,87 @@ export function pngDimensions(data: string): { width: number; height: number } {
   return { width, height };
 }
 
+function parseText(value: unknown): TextContent {
+  const t = record(value);
+  const font = string(t.font, 32) as TextContent["font"];
+  if (!FONTS.includes(font) || !/^#[0-9a-f]{6}$/i.test(string(t.color, 7)))
+    throw new Error("文本图层样式无效。");
+  const text: TextContent = {
+    value: string(t.value, 10000),
+    font,
+    size: number(t.size, 1, 512),
+    color: t.color as string,
+    bold: boolean(t.bold),
+  };
+  if (t.align !== undefined) {
+    const align = string(t.align, 16);
+    if (align !== "left" && align !== "center" && align !== "right")
+      throw new Error("文本图层样式无效。");
+    text.align = align;
+  }
+  if (t.missingFont !== undefined) text.missingFont = string(t.missingFont, 200);
+  return text;
+}
+
+function parseShape(value: unknown): ShapeContent {
+  const s = record(value);
+  const kind = string(s.kind, 32) as ShapeKind;
+  if (!["rectangle", "ellipse", "line", "polygon"].includes(kind))
+    throw new Error("形状图层数据无效。");
+  if (!/^#[0-9a-f]{6}$/i.test(string(s.fill, 7)))
+    throw new Error("形状图层数据无效。");
+  if (!/^#[0-9a-f]{6}$/i.test(string(s.stroke, 7)))
+    throw new Error("形状图层数据无效。");
+  if (!Array.isArray(s.points) || s.points.length > 256)
+    throw new Error("形状图层数据无效。");
+  const points = s.points.map((point) => {
+    const p = record(point);
+    return { x: number(p.x, -100000, 100000), y: number(p.y, -100000, 100000) };
+  });
+  return {
+    kind,
+    fill: s.fill as string,
+    stroke: s.stroke as string,
+    strokeWidth: number(s.strokeWidth, 0, 200),
+    points,
+  };
+}
+
+function parseMask(value: unknown): LayerMaskData {
+  const m = record(value);
+  const image = string(m.image, MAX_PROJECT_BYTES);
+  pngDimensions(image);
+  return {
+    image,
+    inverted: boolean(m.inverted),
+    feather: number(m.feather, 0, 250),
+    disabled: boolean(m.disabled),
+  };
+}
+
+function parseAdjustment(value: unknown): AdjustmentLayerParams {
+  const a = record(value);
+  const type = string(a.type, 32) as AdjustmentType;
+  if (!["levels", "curves", "hueSat", "exposure", "bw"].includes(type))
+    throw new Error("调整图层参数无效。");
+  if (!Array.isArray(a.curve) || a.curve.length < 2 || a.curve.length > 16)
+    throw new Error("调整图层参数无效。");
+  const curve = a.curve.map((c) => number(c, 0, 255));
+  return {
+    type,
+    levelsBlack: number(a.levelsBlack, 0, 255),
+    levelsMid: number(a.levelsMid, 10, 990),
+    levelsWhite: number(a.levelsWhite, 0, 255),
+    curve,
+    hue: number(a.hue, -180, 180),
+    sat: number(a.sat, -100, 100),
+    lightness: number(a.lightness, -100, 100),
+    exposure: number(a.exposure, -5, 5),
+    gamma: number(a.gamma, 0.1, 9.9),
+    bwAmount: number(a.bwAmount, 0, 100),
+  };
+}
+
 export function parseProject(json: string): ProjectData {
   if (new TextEncoder().encode(json).byteLength > MAX_PROJECT_BYTES)
     throw new Error("项目文件超过 128 MB。");
@@ -173,24 +327,9 @@ export function parseProject(json: string): ProjectData {
     const blend = string(layer.blend, 32) as Blend;
     if (!BLENDS.some(([mode]) => mode === blend))
       throw new Error("不支持的图层混合模式。");
-    let text: TextContent | undefined;
-    if (layer.text !== undefined) {
-      const t = record(layer.text);
-      const font = string(t.font, 32) as TextContent["font"];
-      if (!FONTS.includes(font) || !/^#[0-9a-f]{6}$/i.test(string(t.color, 7)))
-        throw new Error("文本图层样式无效。");
-      text = {
-        value: string(t.value, 10000),
-        font,
-        size: number(t.size, 1, 512),
-        color: t.color as string,
-        bold: boolean(t.bold),
-      };
-    }
-    return {
+    const result: LayerData = {
       id,
       image,
-      ...(text ? { text } : {}),
       name: string(layer.name, 200),
       visible: boolean(layer.visible),
       locked: boolean(layer.locked),
@@ -210,6 +349,26 @@ export function parseProject(json: string): ProjectData {
         blur: number(adj.blur, 0, 50),
       },
     };
+    if (layer.text !== undefined) result.text = parseText(layer.text);
+    if (layer.shape !== undefined) result.shape = parseShape(layer.shape);
+    if (layer.kind !== undefined) {
+      const kind = string(layer.kind, 32) as LayerKind;
+      if (!["raster", "text", "shape", "adjustment"].includes(kind))
+        throw new Error("图层类型无效。");
+      result.kind = kind;
+    }
+    if (layer.mask !== undefined) {
+      result.mask = parseMask(layer.mask);
+      const maskSize = pngDimensions(result.mask.image);
+      pixels += maskSize.width * maskSize.height;
+      if (pixels > MAX_LAYER_PIXELS)
+        throw new Error("所有图层总像素超过 4800 万。");
+    }
+    if (layer.clipToBelow !== undefined)
+      result.clipToBelow = boolean(layer.clipToBelow);
+    if (layer.adjustment !== undefined)
+      result.adjustment = parseAdjustment(layer.adjustment);
+    return result;
   });
   return {
     format: "bgssai-compositor",

@@ -102,8 +102,8 @@
         认证通道
         <select id="auth-channel">
           <option value="local_password">本地账号密码登录 / 注册</option>
-          <option value="verification_code" disabled>邮箱 / 手机号验证码登录（暂不可用）</option>
-          <option value="chat">Chat OIDC + S256 PKCE</option>
+          <option value="verification_code">邮箱 / 手机号验证码登录（需配置投递适配器）</option>
+          <option value="chat">Chat OIDC + S256 PKCE（独立会话）</option>
           <option value="wechat" disabled>微信 OAuth（暂不可用）</option>
           <option value="douyin" disabled>抖音 OAuth（暂不可用）</option>
           <option value="baidu" disabled>百度 OAuth（暂不可用）</option>
@@ -123,7 +123,16 @@
         <button id="btn-logout" class="secondary" type="button">撤销会话并退出</button>
       </div>
       <div id="auth-output" class="status-box">等待认证操作...</div>
-      <p>真实 SMS/email 与微信、支付宝、抖音、百度 OAuth 适配器尚未实现。验证码 send/login/verify，以及四渠道 authorize/callback 与通用 begin/callback 别名均返回 503；不返回 code、token 或 session，不能通过自填身份或验证码登录。</p>
+      <p>验证码：配置 <code>COMPOSITOR_OTP_DELIVERY</code> 后启用；响应永不返回验证码。未配置时 send/login/verify 返回 503。国内四渠道 OAuth 仍 503。Chat 授权签发本应用独立会话并落授权记录。账号设置支持绑定/解绑与自助注销。</p>
+    </section>
+
+    <section aria-label="额度套餐与 token 显示">
+      <h2>1b. 额度套餐与 token 显示</h2>
+      <p>套餐剩余示例：<strong title="418,912,345">418.9M</strong> token（悬停为精确整数；中文界面亦不折算为“万”）。开通/续费/加量以支付回调入账，重复回调只入账一次。</p>
+      <div class="row">
+        <button id="btn-quota" type="button">查看套餐与流水示意</button>
+      </div>
+      <div id="quota-output" class="status-box">等待操作...</div>
     </section>
 
     <section aria-label="受控模型目录与区域路由">
@@ -191,12 +200,27 @@
       historyDepth: 1
     };
 
+    document.getElementById("btn-quota")?.addEventListener("click", () => {
+      document.getElementById("quota-output").textContent = JSON.stringify({
+        balance: { remaining_tokens: 418912345, display: "418.9M", exact: "418,912,345", unit: "token" },
+        credit_rule: "payment_callback_only",
+        idempotent_key: "out_trade_no"
+      }, null, 2);
+    });
+
     document.getElementById("btn-login").addEventListener("click", () => {
       const channel = document.getElementById("auth-channel").value;
-      if (!["local_password", "chat"].includes(channel)) {
+      if (["wechat", "douyin", "baidu", "alipay"].includes(channel)) {
         document.getElementById("auth-output").textContent = JSON.stringify(
           { status: 503, error: "真实认证适配器尚未实现，此通道暂不可用" }, null, 2
         );
+        return;
+      }
+      if (channel === "verification_code") {
+        document.getElementById("auth-output").textContent = JSON.stringify({
+          flow: ["POST /api/auth/code/send", "POST /api/auth/code/login"],
+          note: "响应不含 code；未配置投递适配器时 503"
+        }, null, 2);
         return;
       }
       const id = document.getElementById("auth-identifier").value.trim() || "user";

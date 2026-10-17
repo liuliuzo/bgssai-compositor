@@ -154,7 +154,8 @@ test("Windows desktop bridge is isolated and demo renders as editable layers", a
     .getByRole("button", { name: "使用说明", exact: true })
     .first()
     .click();
-  await expect(page.getByRole("dialog")).toContainText("首版不支持 PSD/PSB");
+  await expect(page.getByRole("dialog")).toContainText("RAW 与 CMYK 仍不支持");
+  await expect(page.getByRole("dialog")).toContainText("PSD 导入为尽力而为");
 });
 
 test("closing an edited document can cancel, survive a cancelled save, or discard", async () => {
@@ -225,7 +226,7 @@ test("brush, eraser, layer visibility, undo and redo change actual pixels", asyn
 
 test("selection clips painting and crop retains editable layer pixels", async () => {
   await create();
-  await page.getByRole("button", { name: "矩形选区 (M)", exact: true }).click();
+  await page.getByRole("button", { name: "选区 (M)", exact: true }).click();
   await draw(16, 16, 48, 48);
   await page.getByLabel("前景色", { exact: true }).fill("#00ff00");
   await page.getByRole("button", { name: "画笔 (B)", exact: true }).click();
@@ -233,7 +234,7 @@ test("selection clips painting and crop retains editable layer pixels", async ()
   expect((await pixel(4, 32))[3]).toBe(0);
   expect(await pixel(32, 32)).toEqual([0, 255, 0, 255]);
   expect((await pixel(58, 32))[3]).toBe(0);
-  await page.getByRole("button", { name: "矩形选区 (M)", exact: true }).click();
+  await page.getByRole("button", { name: "选区 (M)", exact: true }).click();
   await page.getByRole("button", { name: "裁切画布", exact: true }).click();
   expect(
     await page

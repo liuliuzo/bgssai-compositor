@@ -38,7 +38,9 @@ import {
   Save,
   Scan,
   SlidersHorizontal,
+  Sparkles,
   Square,
+  Stamp,
   Trash2,
   Type,
   Undo2,
@@ -61,6 +63,8 @@ import {
   FONTS,
   checkDimensions,
   type Point,
+  type SelectionKind,
+  type SelectionMode,
   type TextContent,
 } from "./project";
 import type { OpenedFile } from "./desktop";
@@ -75,14 +79,23 @@ import {
 import { Connections, getActiveSession } from "./Connections";
 import { Updates } from "./Updates";
 import { parseProject } from "./project";
+import {
+  importWithReport,
+  pdfBlobFromDataUrl,
+  type ConversionReport,
+} from "./io";
 
 const editor = new Editor();
 if (native) editor.memoryBudget = 320 * 1024 * 1024;
 const TOOLS: { id: Tool; name: string; key: string; icon: typeof Brush }[] = [
   { id: "move", name: "移动", key: "V", icon: MousePointer2 },
-  { id: "select", name: "矩形选区", key: "M", icon: Scan },
+  { id: "select", name: "选区", key: "M", icon: Scan },
+  { id: "crop", name: "裁剪", key: "C", icon: Crop },
   { id: "brush", name: "画笔", key: "B", icon: Brush },
   { id: "eraser", name: "橡皮擦", key: "E", icon: Eraser },
+  { id: "clone", name: "仿制图章", key: "S", icon: Stamp },
+  { id: "heal", name: "污点修复", key: "J", icon: Sparkles },
+  { id: "gradient", name: "渐变", key: "G", icon: Palette },
   { id: "rectangle", name: "矩形", key: "U", icon: Square },
   { id: "ellipse", name: "椭圆", key: "O", icon: Circle },
   { id: "text", name: "文字", key: "T", icon: Type },
@@ -96,6 +109,10 @@ type Modal =
   | "connections"
   | "updates"
   | "support"
+  | "import-report"
+  | "image-size"
+  | "canvas-size"
+  | "ai-preview"
   | null;
 type Gesture = {
   type: Tool | "scale";
@@ -284,6 +301,21 @@ function TextProperties({
           />
         </label>
         <label>
+          对齐{" "}
+          <select
+            aria-label="文字对齐"
+            value={text.align ?? "left"}
+            disabled={layer.locked}
+            onChange={(e) =>
+              update({ align: e.target.value as TextContent["align"] })
+            }
+          >
+            <option value="left">左对齐</option>
+            <option value="center">居中</option>
+            <option value="right">右对齐</option>
+          </select>
+        </label>
+        <label>
           <input
             type="checkbox"
             checked={text.bold}
@@ -299,6 +331,11 @@ function TextProperties({
           栅格化
         </Button>
       </div>
+      {text.missingFont && (
+        <p className="font-warning" role="status">
+          缺少字体「{text.missingFont}」，已使用系统回退字体显示。
+        </p>
+      )}
     </div>
   );
 }
@@ -486,12 +523,28 @@ export function App() {
   const [newWidth, setNewWidth] = useState(1600);
   const [newHeight, setNewHeight] = useState(1000);
   const [background, setBackground] = useState("transparent");
-  const [format, setFormat] = useState<"png" | "jpeg">("png");
+  const [format, setFormat] = useState<"png" | "jpeg" | "pdf">("png");
   const [quality, setQuality] = useState(92);
   const [exportBg, setExportBg] = useState("#ffffff");
   const [confirm, setConfirm] = useState<
     ((answer: "save" | "discard" | "cancel") => void) | null
   >(null);
+  const [importReport, setImportReport] = useState<ConversionReport | null>(
+    null,
+  );
+  const [aiPreview, setAiPreview] = useState<{
+    dataUrl: string;
+    revision: number;
+  } | null>(null);
+  const [sizeWidth, setSizeWidth] = useState(1600);
+  const [sizeHeight, setSizeHeight] = useState(1000);
+  const [filterPreview, setFilterPreview] = useState<{
+    kind: "gaussian" | "motion" | "sharpen" | "noise";
+    radius: number;
+    angle: number;
+    amount: number;
+  } | null>(null);
+  const [polygonPoints, setPolygonPoints] = useState<Point[]>([]);
   const [draftShape, setDraftShape] = useState<Selection | null>(null);
   const [pointer, setPointer] = useState<Point | null>(null);
   const [spaceHeld, setSpaceHeld] = useState(false);
@@ -599,24 +652,40 @@ export function App() {
   }, [save]);
   const openFile = useCallback(
     async (file: OpenedFile, asLayer: boolean) => {
+      if (file.kind === "project") {
+        if (asLayer) throw new Error("项目文件请通过“打开”读取。");
+        if (!(await guard())) return;
+        await editor.load(file.data);
+        if (window.desktop && file.token)
+          await window.desktop.adoptProject(file.token);
+        else window.desktop?.resetProjectPath();
+        await recovery.clear();
+        lastRecovery.current = null;
+        showDocument();
+        message(`已打开 ${file.name}`);
+        return;
+      }
+      const lower = file.name.toLowerCase();
+      const needsReport =
+        /\.(tiff?|heic|heif|svg|psd)$/i.test(lower) ||
+        !/\.(png|jpe?g|webp|bmp)$/i.test(lower);
+      if (needsReport || /\.(psd|svg|tiff?|heic|heif)$/i.test(lower)) {
+        const report = await importWithReport(file.name, file.data);
+        setImportReport(report);
+        setModal("import-report");
+        (window as unknown as { __importAsLayer?: boolean }).__importAsLayer =
+          asLayer;
+        return;
+      }
       if (asLayer) {
-        if (file.kind !== "image")
-          throw new Error("项目文件请通过“打开”读取。");
         await editor.importImage(file.data, file.name);
         setWelcome(false);
         message("图像已添加为新图层");
         return;
       }
       if (!(await guard())) return;
-      if (file.kind === "project") {
-        await editor.load(file.data);
-        if (window.desktop && file.token)
-          await window.desktop.adoptProject(file.token);
-        else window.desktop?.resetProjectPath();
-      } else {
-        await editor.openImage(file.data, file.name);
-        window.desktop?.resetProjectPath();
-      }
+      await editor.openImage(file.data, file.name);
+      window.desktop?.resetProjectPath();
       await recovery.clear();
       lastRecovery.current = null;
       showDocument();
@@ -679,8 +748,53 @@ export function App() {
             break;
           case "deselect":
             editor.selection = null;
+            setPolygonPoints([]);
             editor.notify();
             break;
+          case "image-size":
+            setSizeWidth(editor.width);
+            setSizeHeight(editor.height);
+            setModal("image-size");
+            break;
+          case "canvas-size":
+            setSizeWidth(editor.width);
+            setSizeHeight(editor.height);
+            setModal("canvas-size");
+            break;
+          case "trim":
+            editor.trim();
+            fit();
+            break;
+          case "ai-edit": {
+            const session = getActiveSession();
+            if (!session?.grants.ai) {
+              setModal("connections");
+              message("请先连接并授权 AI 能力", true);
+              break;
+            }
+            const source = editor.captureSelectionOrLayerPng();
+            const baseline = editor.aiBaselineRevision ?? editor.revision;
+            const result = await request(
+              "ai/image-edit",
+              "POST",
+              {
+                image: source,
+                prompt: "Enhance this selection for a compositor edit preview",
+                request_id: crypto.randomUUID(),
+              },
+              session.token,
+            );
+            const dataUrl =
+              result.image ||
+              result.dataUrl ||
+              result.preview ||
+              result.result;
+            if (typeof dataUrl !== "string")
+              throw new Error("AI 未返回可用的预览图像。");
+            setAiPreview({ dataUrl, revision: baseline });
+            setModal("ai-preview");
+            break;
+          }
           case "fit":
             fit();
             break;
@@ -1001,15 +1115,30 @@ export function App() {
       y: Math.max(0, Math.min(editor.height, p.y)),
     };
   }
-  function box(a: Point, b: Point, square = false): Selection {
+  function box(
+    a: Point,
+    b: Point,
+    square = false,
+    kind: SelectionKind = editor.selectKind,
+  ): Selection {
     let dx = b.x - a.x;
     let dy = b.y - a.y;
-    if (square) {
-      const size = Math.min(Math.abs(dx), Math.abs(dy));
-      dx = Math.sign(dx) * size;
-      dy = Math.sign(dy) * size;
+    if (square || (editor.tool === "crop" && editor.cropAspect)) {
+      if (editor.tool === "crop" && editor.cropAspect) {
+        const ratio = editor.cropAspect;
+        if (Math.abs(dx) / Math.max(1, Math.abs(dy)) > ratio) {
+          dx = Math.sign(dx) * Math.abs(dy) * ratio;
+        } else {
+          dy = Math.sign(dy) * (Math.abs(dx) / ratio);
+        }
+      } else if (square) {
+        const size = Math.min(Math.abs(dx), Math.abs(dy));
+        dx = Math.sign(dx) * size;
+        dy = Math.sign(dy) * size;
+      }
     }
     return {
+      kind,
       x: Math.min(a.x, a.x + dx),
       y: Math.min(a.y, a.y + dy),
       width: Math.abs(dx),
@@ -1049,23 +1178,67 @@ export function App() {
         editor.addText(clamped(point));
         return;
       }
+      if (type === "heal") {
+        editor.spotHeal(clamped(point));
+        return;
+      }
+      if (type === "select" && editor.selectKind === "wand") {
+        editor.wandSelect(clamped(point));
+        return;
+      }
+      if (
+        type === "select" &&
+        (editor.selectKind === "polygon" || editor.selectKind === "lasso")
+      ) {
+        const p = clamped(point);
+        if (editor.selectKind === "polygon") {
+          const next = [...polygonPoints, p];
+          setPolygonPoints(next);
+          setDraftShape({
+            kind: "polygon",
+            x: Math.min(...next.map((pt) => pt.x)),
+            y: Math.min(...next.map((pt) => pt.y)),
+            width:
+              Math.max(...next.map((pt) => pt.x)) -
+              Math.min(...next.map((pt) => pt.x)),
+            height:
+              Math.max(...next.map((pt) => pt.y)) -
+              Math.min(...next.map((pt) => pt.y)),
+            points: next,
+          });
+          return;
+        }
+      }
+      if (type === "clone" && (event.altKey || event.metaKey)) {
+        editor.cloneSource = clamped(point);
+        editor.notify();
+        message("已设置仿制源");
+        return;
+      }
       if (type === "move" && !scale) {
         const hit = editor.hit(point);
         if (hit && !event.shiftKey) editor.select(hit.id);
       }
       const layer = editor.selected;
-      if (["move", "scale", "brush", "eraser"].includes(type) && layer.locked)
+      if (
+        ["move", "scale", "brush", "eraser", "clone", "mask"].includes(type) &&
+        layer.locked
+      )
         throw new Error("请先解锁图层。");
-      if (type === "brush" || type === "eraser")
+      if (type === "brush" || type === "eraser" || type === "mask")
         editor.paint(
           point,
           point,
           type === "eraser",
           event.pointerType === "pen" ? Math.max(0.05, event.pressure) : 1,
         );
+      if (type === "clone" && editor.cloneSource)
+        editor.cloneStamp(point, point);
       gesture.current = {
         type,
-        start: ["select", "rectangle", "ellipse"].includes(type)
+        start: ["select", "rectangle", "ellipse", "crop", "gradient", "lasso"].includes(
+          type,
+        ) || (type === "select" && editor.selectKind === "lasso")
           ? clamped(point)
           : point,
         previous: point,
@@ -1080,9 +1253,20 @@ export function App() {
         clientY: event.clientY,
       };
       event.currentTarget.setPointerCapture(event.pointerId);
-      if (type === "select") {
+      if (
+        type === "select" &&
+        editor.selectionMode === "replace" &&
+        (editor.selectKind === "rect" || editor.selectKind === "ellipse")
+      ) {
         editor.selection = null;
         editor.notify();
+      }
+      if (type === "crop") {
+        editor.selection = null;
+        editor.notify();
+      }
+      if (type === "select" && editor.selectKind === "lasso") {
+        setPolygonPoints([clamped(point)]);
       }
     } catch (error) {
       gesture.current = null;
@@ -1134,7 +1318,11 @@ export function App() {
           "缩放图层",
           true,
         );
-      } else if (drag.type === "brush" || drag.type === "eraser") {
+      } else if (
+        drag.type === "brush" ||
+        drag.type === "eraser" ||
+        drag.type === "mask"
+      ) {
         const events = event.nativeEvent.getCoalescedEvents?.() ?? [];
         const points = events.length ? events : [event.nativeEvent];
         const bounds = artboard.current!.getBoundingClientRect();
@@ -1151,8 +1339,44 @@ export function App() {
           );
           drag.previous = p;
         }
-      } else if (["select", "rectangle", "ellipse"].includes(drag.type))
-        setDraftShape(box(drag.start, clamped(point), event.shiftKey));
+      } else if (drag.type === "clone" && editor.cloneSource) {
+        editor.cloneStamp(drag.previous, point);
+        drag.previous = point;
+      } else if (
+        drag.type === "select" &&
+        editor.selectKind === "lasso"
+      ) {
+        const next = [...polygonPoints, clamped(point)];
+        setPolygonPoints(next);
+        setDraftShape({
+          kind: "lasso",
+          x: Math.min(...next.map((pt) => pt.x)),
+          y: Math.min(...next.map((pt) => pt.y)),
+          width:
+            Math.max(...next.map((pt) => pt.x)) -
+            Math.min(...next.map((pt) => pt.x)),
+          height:
+            Math.max(...next.map((pt) => pt.y)) -
+            Math.min(...next.map((pt) => pt.y)),
+          points: next,
+        });
+      } else if (
+        ["select", "rectangle", "ellipse", "crop", "gradient"].includes(
+          drag.type,
+        )
+      )
+        setDraftShape(
+          box(
+            drag.start,
+            clamped(point),
+            event.shiftKey,
+            drag.type === "ellipse"
+              ? "ellipse"
+              : drag.type === "select"
+                ? editor.selectKind
+                : "rect",
+          ),
+        );
       drag.previous = point;
     } catch (error) {
       message((error as Error).message, true);
@@ -1165,27 +1389,66 @@ export function App() {
     gesture.current = null;
     try {
       if (drag.type === "select") {
+        if (editor.selectKind === "lasso" && polygonPoints.length > 2) {
+          const xs = polygonPoints.map((p) => p.x);
+          const ys = polygonPoints.map((p) => p.y);
+          editor.applySelection({
+            kind: "lasso",
+            x: Math.min(...xs),
+            y: Math.min(...ys),
+            width: Math.max(...xs) - Math.min(...xs),
+            height: Math.max(...ys) - Math.min(...ys),
+            points: polygonPoints,
+          });
+          setPolygonPoints([]);
+        } else if (
+          editor.selectKind === "rect" ||
+          editor.selectKind === "ellipse"
+        ) {
+          const selection = box(
+            drag.start,
+            clamped(position(event)),
+            event.shiftKey,
+            editor.selectKind,
+          );
+          if (selection.width > 0 && selection.height > 0)
+            editor.applySelection(selection);
+        }
+      } else if (drag.type === "crop") {
         const selection = box(
           drag.start,
           clamped(position(event)),
-          event.shiftKey,
+          false,
+          "rect",
         );
-        editor.selection =
-          selection.width > 0 && selection.height > 0 ? selection : null;
-        editor.notify();
+        if (selection.width > 0 && selection.height > 0) {
+          editor.selection = selection;
+          editor.crop(editor.cropAspect);
+          fit();
+        }
+      } else if (drag.type === "gradient") {
+        editor.gradientFill(drag.start, clamped(position(event)));
       } else if (drag.type === "rectangle" || drag.type === "ellipse")
         editor.shape(
-          box(drag.start, clamped(position(event)), event.shiftKey),
+          box(drag.start, clamped(position(event)), event.shiftKey, "rect"),
           drag.type === "ellipse",
         );
-      else if (["move", "scale", "brush", "eraser"].includes(drag.type))
+      else if (
+        ["move", "scale", "brush", "eraser", "clone", "mask"].includes(
+          drag.type,
+        )
+      )
         editor.commit(
-          {
-            move: "移动图层",
-            scale: "缩放图层",
-            brush: "画笔",
-            eraser: "橡皮擦",
-          }[drag.type as "move" | "scale" | "brush" | "eraser"],
+          (
+            {
+              move: "移动图层",
+              scale: "缩放图层",
+              brush: "画笔",
+              eraser: "橡皮擦",
+              clone: "仿制图章",
+              mask: "绘制蒙版",
+            } as Record<string, string>
+          )[drag.type],
         );
     } catch (error) {
       message((error as Error).message, true);
@@ -1337,7 +1600,7 @@ export function App() {
           {currentTool.name}
         </span>
         <span className="divider" />
-        {["brush", "eraser"].includes(editor.tool) ? (
+        {["brush", "eraser", "clone", "heal"].includes(editor.tool) ? (
           <>
             <label>
               大小{" "}
@@ -1355,6 +1618,21 @@ export function App() {
               <output>{editor.brushSize} px</output>
             </label>
             <label>
+              硬度{" "}
+              <input
+                aria-label="画笔硬度"
+                type="range"
+                value={editor.brushHardness * 100}
+                min={0}
+                max={100}
+                onChange={(e) => {
+                  editor.brushHardness = Number(e.target.value) / 100;
+                  editor.notify();
+                }}
+              />
+              <output>{Math.round(editor.brushHardness * 100)}%</output>
+            </label>
+            <label>
               不透明度{" "}
               <input
                 aria-label="画笔不透明度"
@@ -1369,10 +1647,120 @@ export function App() {
               />
               <output>{Math.round(editor.brushOpacity * 100)}%</output>
             </label>
+            {editor.tool === "clone" && (
+              <span className="tool-hint">Alt 点击设置仿制源</span>
+            )}
+            <label>
+              <input
+                type="checkbox"
+                checked={editor.maskPaintMode}
+                onChange={(e) => {
+                  editor.maskPaintMode = e.target.checked;
+                  if (e.target.checked) safe(() => editor.addMask());
+                  editor.notify();
+                }}
+              />{" "}
+              绘制蒙版
+            </label>
           </>
-        ) : editor.tool === "select" ? (
+        ) : editor.tool === "select" || editor.tool === "crop" ? (
           <>
-            <span>拖动创建选区 · Shift 等比</span>
+            {editor.tool === "select" && (
+              <>
+                <select
+                  aria-label="选区形状"
+                  value={editor.selectKind}
+                  onChange={(e) => {
+                    editor.selectKind = e.target.value as SelectionKind;
+                    setPolygonPoints([]);
+                    editor.notify();
+                  }}
+                >
+                  <option value="rect">矩形</option>
+                  <option value="ellipse">椭圆</option>
+                  <option value="lasso">套索</option>
+                  <option value="polygon">多边形</option>
+                  <option value="wand">魔棒</option>
+                </select>
+                <select
+                  aria-label="选区模式"
+                  value={editor.selectionMode}
+                  onChange={(e) => {
+                    editor.selectionMode = e.target.value as SelectionMode;
+                    editor.notify();
+                  }}
+                >
+                  <option value="replace">新建</option>
+                  <option value="add">加选</option>
+                  <option value="subtract">减选</option>
+                </select>
+                <Button
+                  onClick={() => safe(() => editor.expandSelection(4))}
+                  disabled={!editor.selection}
+                >
+                  扩展
+                </Button>
+                <Button
+                  onClick={() => safe(() => editor.contractSelection(4))}
+                  disabled={!editor.selection}
+                >
+                  收缩
+                </Button>
+                <Button
+                  onClick={() => safe(() => editor.featherSelection(4))}
+                  disabled={!editor.selection}
+                >
+                  羽化
+                </Button>
+                <Button
+                  onClick={() => safe(() => editor.contentAwareFill())}
+                  disabled={!editor.selection || welcome}
+                >
+                  内容识别填充
+                </Button>
+                {editor.selectKind === "polygon" && polygonPoints.length > 2 && (
+                  <Button
+                    className="primary"
+                    onClick={() => {
+                      const xs = polygonPoints.map((p) => p.x);
+                      const ys = polygonPoints.map((p) => p.y);
+                      safe(() =>
+                        editor.applySelection({
+                          kind: "polygon",
+                          x: Math.min(...xs),
+                          y: Math.min(...ys),
+                          width: Math.max(...xs) - Math.min(...xs),
+                          height: Math.max(...ys) - Math.min(...ys),
+                          points: polygonPoints,
+                        }),
+                      );
+                      setPolygonPoints([]);
+                      setDraftShape(null);
+                    }}
+                  >
+                    闭合多边形
+                  </Button>
+                )}
+              </>
+            )}
+            {editor.tool === "crop" && (
+              <select
+                aria-label="裁剪比例"
+                value={editor.cropAspect ?? ""}
+                onChange={(e) => {
+                  editor.cropAspect = e.target.value
+                    ? Number(e.target.value)
+                    : null;
+                  editor.notify();
+                }}
+              >
+                <option value="">自由</option>
+                <option value={1}>1:1</option>
+                <option value={16 / 9}>16:9</option>
+                <option value={4 / 3}>4:3</option>
+                <option value={3 / 2}>3:2</option>
+              </select>
+            )}
             <Button
               onClick={() =>
                 safe(() => {
@@ -1388,6 +1776,7 @@ export function App() {
             <Button
               onClick={() => {
                 editor.selection = null;
+                setPolygonPoints([]);
                 editor.notify();
               }}
             >
@@ -1404,7 +1793,9 @@ export function App() {
                   ? "拖动平移画布 · 任意工具按住空格切换抓手"
                   : editor.tool === "eyedropper"
                     ? "点击画布采样颜色"
-                    : "拖动绘制 · Shift 等比"}
+                    : editor.tool === "gradient"
+                      ? "拖动创建渐变"
+                      : "拖动绘制 · Shift 等比"}
           </span>
         )}
         <div className="options-end">
@@ -1607,7 +1998,8 @@ export function App() {
                         width={selection.width}
                         height={selection.height}
                         rx={
-                          editor.tool === "ellipse" && draftShape
+                          selection.kind === "ellipse" ||
+                          (editor.tool === "ellipse" && draftShape)
                             ? selection.width / 2
                             : 0
                         }
@@ -1705,7 +2097,15 @@ export function App() {
           <div className="inspector-heading">
             <SlidersHorizontal size={15} />
             <span>图层属性</span>
-            <small>{selected.text ? "文字" : "像素"}</small>
+            <small>
+              {selected.kind === "adjustment"
+                ? "调整"
+                : selected.shape
+                  ? "形状"
+                  : selected.text
+                    ? "文字"
+                    : "像素"}
+            </small>
           </div>
           <div className="properties-scroll">
             <div className="layer-name-row">
@@ -1742,6 +2142,56 @@ export function App() {
                   <UnlockKeyhole size={15} />
                 )}
               </Button>
+            </div>
+            <div className="section-label">
+              蒙版与剪贴<span>MASK</span>
+            </div>
+            <div className="mask-actions">
+              <Button
+                onClick={() => safe(() => editor.addMask())}
+                disabled={layerDisabled || !!selected.mask}
+              >
+                添加蒙版
+              </Button>
+              <Button
+                onClick={() => safe(() => editor.invertMask())}
+                disabled={layerDisabled || !selected.mask}
+              >
+                反相
+              </Button>
+              <Button
+                onClick={() =>
+                  safe(() =>
+                    editor.setMaskDisabled(!(selected.mask?.disabled ?? false)),
+                  )
+                }
+                disabled={layerDisabled || !selected.mask}
+              >
+                {selected.mask?.disabled ? "启用" : "停用"}
+              </Button>
+              <Button
+                onClick={() => safe(() => editor.featherMask(4))}
+                disabled={layerDisabled || !selected.mask}
+              >
+                羽化
+              </Button>
+              <Button
+                onClick={() => safe(() => editor.removeMask())}
+                disabled={layerDisabled || !selected.mask}
+              >
+                删除
+              </Button>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={!!selected.clipToBelow}
+                  disabled={layerDisabled}
+                  onChange={(e) =>
+                    safe(() => editor.setClipToBelow(e.target.checked))
+                  }
+                />{" "}
+                剪贴蒙版
+              </label>
             </div>
             <div className="section-label">
               变换<span>PX</span>
@@ -1807,6 +2257,164 @@ export function App() {
             {selected.text && (
               <TextProperties key={selected.id} layer={selected} safe={safe} />
             )}
+            {selected.shape && (
+              <div className="text-properties">
+                <div className="section-label">
+                  形状<span>SHAPE</span>
+                </div>
+                <label>
+                  填充{" "}
+                  <input
+                    type="color"
+                    value={selected.shape.fill}
+                    disabled={layerDisabled}
+                    onChange={(e) =>
+                      safe(() => editor.updateShape({ fill: e.target.value }))
+                    }
+                  />
+                </label>
+                <label>
+                  描边{" "}
+                  <input
+                    type="color"
+                    value={selected.shape.stroke}
+                    disabled={layerDisabled}
+                    onChange={(e) =>
+                      safe(() => editor.updateShape({ stroke: e.target.value }))
+                    }
+                  />
+                </label>
+                <NumberField
+                  label="描边宽"
+                  value={selected.shape.strokeWidth}
+                  min={0}
+                  max={80}
+                  disabled={layerDisabled}
+                  onCommit={(strokeWidth) =>
+                    safe(() => editor.updateShape({ strokeWidth }))
+                  }
+                />
+                <Button
+                  onClick={() => safe(() => editor.rasterize())}
+                  disabled={layerDisabled}
+                >
+                  栅格化形状
+                </Button>
+              </div>
+            )}
+            {selected.kind === "adjustment" && selected.adjustment && (
+              <details className="adjustments" open>
+                <summary>
+                  <Palette size={14} />
+                  调整图层
+                  <ChevronDown size={13} />
+                </summary>
+                <div>
+                  <select
+                    aria-label="调整类型"
+                    value={selected.adjustment.type}
+                    disabled={layerDisabled}
+                    onChange={(e) =>
+                      safe(() =>
+                        editor.patchAdjustment({
+                          type: e.target
+                            .value as import("./project").AdjustmentType,
+                        }),
+                      )
+                    }
+                  >
+                    <option value="levels">色阶</option>
+                    <option value="curves">曲线</option>
+                    <option value="hueSat">色相/饱和度</option>
+                    <option value="exposure">曝光</option>
+                    <option value="bw">黑白</option>
+                  </select>
+                  {selected.adjustment.type === "levels" && (
+                    <>
+                      {slider(
+                        "黑场",
+                        selected.adjustment.levelsBlack,
+                        0,
+                        255,
+                        (levelsBlack) =>
+                          editor.patchAdjustment({ levelsBlack }, true),
+                      )}
+                      {slider(
+                        "灰场",
+                        selected.adjustment.levelsMid,
+                        10,
+                        990,
+                        (levelsMid) =>
+                          editor.patchAdjustment({ levelsMid }, true),
+                      )}
+                      {slider(
+                        "白场",
+                        selected.adjustment.levelsWhite,
+                        0,
+                        255,
+                        (levelsWhite) =>
+                          editor.patchAdjustment({ levelsWhite }, true),
+                      )}
+                    </>
+                  )}
+                  {selected.adjustment.type === "hueSat" && (
+                    <>
+                      {slider("色相", selected.adjustment.hue, -180, 180, (hue) =>
+                        editor.patchAdjustment({ hue }, true),
+                      )}
+                      {slider("饱和度", selected.adjustment.sat, -100, 100, (sat) =>
+                        editor.patchAdjustment({ sat }, true),
+                      )}
+                      {slider(
+                        "明度",
+                        selected.adjustment.lightness,
+                        -100,
+                        100,
+                        (lightness) =>
+                          editor.patchAdjustment({ lightness }, true),
+                      )}
+                    </>
+                  )}
+                  {selected.adjustment.type === "exposure" && (
+                    <>
+                      {slider(
+                        "曝光",
+                        selected.adjustment.exposure,
+                        -5,
+                        5,
+                        (exposure) =>
+                          editor.patchAdjustment({ exposure }, true),
+                      )}
+                      {slider(
+                        "伽马",
+                        selected.adjustment.gamma,
+                        0.1,
+                        3,
+                        (gamma) => editor.patchAdjustment({ gamma }, true),
+                      )}
+                    </>
+                  )}
+                  {selected.adjustment.type === "bw" &&
+                    slider(
+                      "黑白强度",
+                      selected.adjustment.bwAmount,
+                      0,
+                      100,
+                      (bwAmount) =>
+                        editor.patchAdjustment({ bwAmount }, true),
+                    )}
+                  {selected.adjustment.type === "curves" && (
+                    <p className="tool-hint">曲线控制点已内置；修改色阶灰场可联动。</p>
+                  )}
+                  <Button
+                    onClick={() => safe(() => editor.commit("调整图层"))}
+                    disabled={layerDisabled}
+                  >
+                    确认调整
+                  </Button>
+                </div>
+              </details>
+            )}
             <details className="adjustments">
               <summary>
                 <Palette size={14} />
@@ -1854,8 +2462,129 @@ export function App() {
                   <RotateCcw size={12} />
                   重置调整
                 </Button>
+                <div className="section-label">
+                  滤镜预览<span>LIVE</span>
+                </div>
+                <div className="mask-actions">
+                  {(
+                    [
+                      ["gaussian", "高斯模糊"],
+                      ["motion", "动感模糊"],
+                      ["sharpen", "锐化"],
+                      ["noise", "噪点"],
+                    ] as const
+                  ).map(([kind, label]) => (
+                    <Button
+                      key={kind}
+                      disabled={layerDisabled}
+                      onClick={() =>
+                        safe(() => {
+                          setFilterPreview({
+                            kind,
+                            radius: kind === "sharpen" ? 1 : 6,
+                            angle: 0,
+                            amount: 40,
+                          });
+                          editor.applyFilter(
+                            kind,
+                            {
+                              radius: kind === "sharpen" ? 1 : 6,
+                              angle: 0,
+                              amount: 40,
+                            },
+                            true,
+                          );
+                        })
+                      }
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+                {filterPreview && (
+                  <div className="mask-actions">
+                    <Button
+                      className="primary"
+                      onClick={() =>
+                        safe(() => {
+                          editor.commit(`滤镜 · ${filterPreview.kind}`);
+                          setFilterPreview(null);
+                        })
+                      }
+                    >
+                      应用滤镜
+                    </Button>
+                    <Button
+                      onClick={() =>
+                        void run(async () => {
+                          await editor.restore(editor.historyIndex);
+                          setFilterPreview(null);
+                        })
+                      }
+                    >
+                      取消预览
+                    </Button>
+                  </div>
+                )}
+                <Button
+                  onClick={() =>
+                    safe(() => {
+                      editor.addAdjustmentLayer("levels");
+                      setWelcome(false);
+                    })
+                  }
+                  disabled={working}
+                >
+                  新建调整图层
+                </Button>
               </div>
             </details>
+            <div className="section-label">
+              画布<span>SIZE</span>
+            </div>
+            <div className="mask-actions">
+              <Button
+                onClick={() => action("image-size")}
+                disabled={welcome || working}
+              >
+                图像大小
+              </Button>
+              <Button
+                onClick={() => action("canvas-size")}
+                disabled={welcome || working}
+              >
+                画布大小
+              </Button>
+              <Button
+                onClick={() => action("trim")}
+                disabled={welcome || working}
+              >
+                修整
+              </Button>
+              <Button
+                onClick={() => action("ai-edit")}
+                disabled={welcome || working}
+              >
+                AI 编辑
+              </Button>
+              <Button
+                onClick={() =>
+                  safe(() => {
+                    const w = selected.canvas.width;
+                    const h = selected.canvas.height;
+                    editor.perspectiveTransform([
+                      { x: w * 0.05, y: 0 },
+                      { x: w * 0.95, y: h * 0.05 },
+                      { x: w, y: h },
+                      { x: 0, y: h * 0.95 },
+                    ]);
+                  })
+                }
+                disabled={layerDisabled}
+              >
+                透视变形
+              </Button>
+            </div>
           </div>
           <div className="panel-tabs">
             <button
@@ -1978,7 +2707,17 @@ export function App() {
                       <Thumbnail layer={layer} revision={revision} />
                       <span>
                         {layer.name}
-                        <small>{layer.text ? "文字图层" : "像素图层"}</small>
+                        <small>
+                          {layer.kind === "adjustment"
+                            ? "调整图层"
+                            : layer.shape
+                              ? "形状图层"
+                              : layer.text
+                                ? "文字图层"
+                                : layer.mask
+                                  ? "带蒙版"
+                                  : "像素图层"}
+                        </small>
                       </span>
                     </button>
                     {layer.locked && (
@@ -2091,7 +2830,9 @@ export function App() {
       {modal === "updates" && (
         <Updates close={() => setModal(null)} message={message} />
       )}
-      {((modal && modal !== "connections" && modal !== "updates") ||
+      {((modal &&
+        modal !== "connections" &&
+        modal !== "updates") ||
         confirm) && (
         <div className="modal-backdrop">
           <section
@@ -2105,7 +2846,13 @@ export function App() {
                   ? "新建画布"
                   : modal === "export"
                     ? "导出图像"
-                    : "使用说明"
+                    : modal === "import-report"
+                      ? "导入转换报告"
+                      : modal === "ai-preview"
+                        ? "AI 预览"
+                        : modal === "image-size" || modal === "canvas-size"
+                          ? "尺寸"
+                          : "使用说明"
             }
           >
             <div className="modal-heading">
@@ -2116,11 +2863,26 @@ export function App() {
                     ? "从空白开始。"
                     : modal === "export"
                       ? "准备好分享你的作品。"
-                      : "你的创作工作台。"}
+                      : modal === "import-report"
+                        ? "导入转换报告"
+                        : modal === "ai-preview"
+                          ? "确认 AI 预览结果"
+                          : modal === "image-size"
+                            ? "图像大小"
+                            : modal === "canvas-size"
+                              ? "画布大小"
+                              : "你的创作工作台。"}
               </h2>
               <Button
                 title="关闭对话框"
-                onClick={() => (confirm ? confirm("cancel") : setModal(null))}
+                onClick={() => {
+                  if (confirm) confirm("cancel");
+                  else {
+                    setModal(null);
+                    setImportReport(null);
+                    setAiPreview(null);
+                  }
+                }}
               >
                 <X size={18} />
               </Button>
@@ -2262,11 +3024,12 @@ export function App() {
                     aria-label="导出格式"
                     value={format}
                     onChange={(e) =>
-                      setFormat(e.target.value as "png" | "jpeg")
+                      setFormat(e.target.value as "png" | "jpeg" | "pdf")
                     }
                   >
                     <option value="png">PNG · 无损，保留透明区域</option>
                     <option value="jpeg">JPEG · 更小文件，适合分享</option>
+                    <option value="pdf">PDF · 嵌入图像的简易文档</option>
                   </select>
                 </label>
                 {format === "jpeg" && (
@@ -2303,33 +3066,221 @@ export function App() {
                     disabled={working}
                     onClick={() =>
                       void run(async () => {
-                        const data = editor.exportImage(
-                          format,
-                          quality / 100,
-                          exportBg,
-                        );
-                        if (window.desktop) {
-                          const result = await window.desktop.exportImage(
+                        if (format === "pdf") {
+                          const jpeg = editor.exportImage(
+                            "jpeg",
+                            quality / 100,
+                            exportBg,
+                          );
+                          const blob = pdfBlobFromDataUrl(
+                            jpeg,
+                            editor.width,
+                            editor.height,
                             editor.name,
-                            data,
+                          );
+                          const url = URL.createObjectURL(blob);
+                          const anchor = document.createElement("a");
+                          anchor.href = url;
+                          anchor.download = `${editor.name}.pdf`;
+                          anchor.click();
+                          setTimeout(() => URL.revokeObjectURL(url), 1000);
+                        } else {
+                          const data = editor.exportImage(
                             format,
+                            quality / 100,
+                            exportBg,
                           );
-                          if (!result) return;
-                        } else if (native)
-                          await saveNative(editor.name, data, format);
-                        else
-                          download(
-                            `${editor.name}.${format === "jpeg" ? "jpg" : "png"}`,
-                            data,
-                            `image/${format}`,
-                          );
+                          if (window.desktop) {
+                            const result = await window.desktop.exportImage(
+                              editor.name,
+                              data,
+                              format,
+                            );
+                            if (!result) return;
+                          } else if (native)
+                            await saveNative(editor.name, data, format);
+                          else
+                            download(
+                              `${editor.name}.${format === "jpeg" ? "jpg" : "png"}`,
+                              data,
+                              `image/${format}`,
+                            );
+                        }
                         setModal(null);
-                        message("图像已导出");
+                        message(format === "pdf" ? "PDF 已导出" : "图像已导出");
                       })
                     }
                   >
                     <Download size={16} />
-                    导出图像
+                    导出{format === "pdf" ? " PDF" : "图像"}
+                  </Button>
+                </div>
+              </>
+            ) : modal === "import-report" && importReport ? (
+              <>
+                <p className="modal-subtitle">
+                  {importReport.fileName} · {importReport.format.toUpperCase()}
+                  {importReport.width && importReport.height
+                    ? ` · ${importReport.width}×${importReport.height}`
+                    : ""}
+                </p>
+                {importReport.layers.length > 0 && (
+                  <div className="help-note">
+                    <strong>图层</strong>
+                    {importReport.layers.map((layer, i) => (
+                      <p key={`${layer.name}-${i}`}>
+                        {layer.name}
+                        <small>
+                          {" "}
+                          · {layer.kind}
+                          {layer.note ? ` · ${layer.note}` : ""}
+                        </small>
+                      </p>
+                    ))}
+                  </div>
+                )}
+                <div className="help-note">
+                  {importReport.issues.map((issue, i) => (
+                    <p key={i}>
+                      [{issue.severity}] {issue.message}
+                    </p>
+                  ))}
+                </div>
+                <div className="modal-actions">
+                  <Button
+                    onClick={() => {
+                      setModal(null);
+                      setImportReport(null);
+                    }}
+                  >
+                    取消
+                  </Button>
+                  <Button
+                    className="primary"
+                    disabled={!importReport.ok || !importReport.imageDataUrl}
+                    onClick={() =>
+                      void run(async () => {
+                        const report = importReport;
+                        if (!report?.imageDataUrl) return;
+                        const asLayer = !!(
+                          window as unknown as { __importAsLayer?: boolean }
+                        ).__importAsLayer;
+                        if (asLayer) {
+                          await editor.importImage(
+                            report.imageDataUrl,
+                            report.fileName,
+                          );
+                          setWelcome(false);
+                          message("已按转换报告导入为图层");
+                        } else {
+                          if (!(await guard())) return;
+                          await editor.openImage(
+                            report.imageDataUrl,
+                            report.fileName,
+                          );
+                          window.desktop?.resetProjectPath();
+                          await recovery.clear();
+                          lastRecovery.current = null;
+                          showDocument();
+                          message("已按转换报告打开图像");
+                        }
+                        setModal(null);
+                        setImportReport(null);
+                      })
+                    }
+                  >
+                    {importReport.ok ? "继续导入" : "无法导入"}
+                  </Button>
+                </div>
+              </>
+            ) : modal === "ai-preview" && aiPreview ? (
+              <>
+                <p className="modal-subtitle">
+                  预览确认后才会写入新图层；文档若已变更将拒绝应用。
+                </p>
+                <div className="export-summary">
+                  <img
+                    src={aiPreview.dataUrl}
+                    alt="AI 预览"
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: 240,
+                      objectFit: "contain",
+                    }}
+                  />
+                </div>
+                <div className="modal-actions">
+                  <Button
+                    onClick={() => {
+                      setAiPreview(null);
+                      setModal(null);
+                    }}
+                  >
+                    取消
+                  </Button>
+                  <Button
+                    className="primary"
+                    onClick={() =>
+                      void run(async () => {
+                        await editor.applyAiPreviewImage(
+                          aiPreview.dataUrl,
+                          aiPreview.revision,
+                        );
+                        setAiPreview(null);
+                        setModal(null);
+                        message("AI 结果已添加为可撤销图层");
+                      })
+                    }
+                  >
+                    应用为新图层
+                  </Button>
+                </div>
+              </>
+            ) : modal === "image-size" || modal === "canvas-size" ? (
+              <>
+                <p className="modal-subtitle">
+                  {modal === "image-size"
+                    ? "缩放整个文档中的图层变换。"
+                    : "改变画布边界，不缩放图层像素。"}
+                </p>
+                <div className="two-fields">
+                  <label className="form-label">
+                    宽度 (px)
+                    <input
+                      type="number"
+                      value={sizeWidth}
+                      min={1}
+                      max={8192}
+                      onChange={(e) => setSizeWidth(Number(e.target.value))}
+                    />
+                  </label>
+                  <label className="form-label">
+                    高度 (px)
+                    <input
+                      type="number"
+                      value={sizeHeight}
+                      min={1}
+                      max={8192}
+                      onChange={(e) => setSizeHeight(Number(e.target.value))}
+                    />
+                  </label>
+                </div>
+                <div className="modal-actions">
+                  <Button onClick={() => setModal(null)}>取消</Button>
+                  <Button
+                    className="primary"
+                    onClick={() =>
+                      safe(() => {
+                        checkDimensions(sizeWidth, sizeHeight);
+                        if (modal === "image-size")
+                          editor.imageSize(sizeWidth, sizeHeight);
+                        else editor.canvasSize(sizeWidth, sizeHeight);
+                        setModal(null);
+                        fit();
+                      })
+                    }
+                  >
+                    应用
                   </Button>
                 </div>
               </>
@@ -2377,12 +3328,12 @@ export function App() {
                   </div>
                 </div>
                 <div className="help-note">
-                  图层列表支持拖动排序。矩形选区可以限制绘画范围，也可以裁切画布。文字图层可编辑，栅格化后可用画笔修改。PNG
-                  导出保留透明，JPEG 将透明区域填为所选背景色。
+                  选区支持矩形/椭圆/套索/多边形/魔棒，以及加选、减选、扩展、收缩与羽化；可对选区做内容识别填充。图层蒙版可绘制、反相、羽化与停用，并支持剪贴蒙版。画笔含硬度；另有仿制图章、污点修复、渐变与可编辑形状。调整图层与滤镜提供实时预览。PNG/JPEG/PDF
+                  可导出；导入 JPEG/PNG/TIFF/WebP/HEIC/SVG/PSD 时显示转换报告。
                 </div>
                 <p className="help-limit">
-                  首版不支持 PSD/PSB、RAW、图层蒙版和 CMYK；项目使用 .bgcomp
-                  保存。参考 robbietilton/Compositor 的编辑工作流。
+                  RAW 与 CMYK 仍不支持；PSD 导入为尽力而为（列出图层并栅格化合成图），项目使用
+                  .bgcomp 保存。参考 robbietilton/Compositor 的编辑工作流。
                 </p>
                 <div className="modal-actions">
                   <Button className="primary" onClick={() => setModal(null)}>
@@ -2400,8 +3351,8 @@ export function App() {
         type="file"
         accept={
           fileMode.current === "image"
-            ? ".png,.jpg,.jpeg,.webp,.bmp"
-            : ".bgcomp,.png,.jpg,.jpeg,.webp,.bmp"
+            ? ".png,.jpg,.jpeg,.webp,.bmp,.tif,.tiff,.heic,.heif,.svg,.psd"
+            : ".bgcomp,.png,.jpg,.jpeg,.webp,.bmp,.tif,.tiff,.heic,.heif,.svg,.psd"
         }
         onChange={(e) => {
           const file = e.target.files?.[0];
