@@ -57,6 +57,22 @@ async function create(width = 64, height = 64) {
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.locator(".artboard")).toBeVisible();
 }
+
+test("unavailable authentication channels are disabled while password and Chat remain available", async () => {
+  await page.getByRole("button", { name: "账户与连接", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "账户与连接" });
+  const channels = dialog.getByLabel("登录方式");
+  for (const channel of ["verification_code", "wechat", "alipay", "douyin", "baidu"]) {
+    await expect(channels.locator(`option[value="${channel}"]`)).toHaveJSProperty("disabled", true);
+  }
+  await expect(dialog.getByRole("status")).toContainText("暂未启用");
+  await expect(channels.locator('option[value="local"]')).toHaveJSProperty("disabled", false);
+  await expect(channels.locator('option[value="chat"]')).toHaveJSProperty("disabled", false);
+  await channels.selectOption("local");
+  await expect(dialog.getByLabel("登录账号", { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel("登录密码", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "发送验证码", exact: true })).toHaveCount(0);
+});
 async function point(x: number, y: number) {
   const box = await page.locator(".artboard").boundingBox();
   if (!box) throw new Error("Missing artboard");

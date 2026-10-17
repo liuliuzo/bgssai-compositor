@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BGSSAI Compositor - OPS-COMP-01 / OPS-COMP-02 Static Demo</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #121518;
+      --panel: #1b2026;
+      --border: #2d353f;
+      --text: #e6edf3;
+      --muted: #9aa6b2;
+      --accent: #2f81f7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    h1, h2, h3 { margin: 0 0 10px 0; font-weight: 600; }
+    main {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 16px;
+      padding: 20px;
+    }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px;
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    input, select, textarea, button {
+      width: 100%;
+      padding: 8px 10px;
+      margin-top: 4px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: #0d1117;
+      color: var(--text);
+      font-size: 13px;
+    }
+    button {
+      cursor: pointer;
+      background: var(--accent);
+      border-color: var(--accent);
+      font-weight: 600;
+      margin-top: 8px;
+    }
+    button.secondary {
+      background: transparent;
+      border-color: var(--border);
+    }
+    .row {
+      display: flex;
+      gap: 8px;
+    }
+    .status-box {
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: #0d1117;
+      font-family: Consolas, monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>BGSSAI Compositor</h1>
+      <small>OPS-COMP-01 Auth Matrix &amp; Regional Model Routing | OPS-COMP-02 Support Bridge &amp; Bot/MCP Tools</small>
+    </div>
+    <div id="session-badge">当前模式: 离线本地编辑 (无需登录)</div>
+  </header>
+  <main>
+    <section aria-label="全矩阵身份认证">
+      <h2>1. 认证通道可用状态 (OPS-COMP-01)</h2>
+      <p>此页为静态交互示意，不连接认证服务、不签发真实会话。正式应用保留密码与 Chat PKCE 登录。</p>
+      <label>
+        认证通道
+        <select id="auth-channel">
+          <option value="local_password">本地账号密码登录 / 注册</option>
+          <option value="verification_code" disabled>邮箱 / 手机号验证码登录（暂不可用）</option>
+          <option value="chat">Chat OIDC + S256 PKCE</option>
+          <option value="wechat" disabled>微信 OAuth（暂不可用）</option>
+          <option value="douyin" disabled>抖音 OAuth（暂不可用）</option>
+          <option value="baidu" disabled>百度 OAuth（暂不可用）</option>
+          <option value="alipay" disabled>支付宝 OAuth（暂不可用）</option>
+        </select>
+      </label>
+      <label>
+        账号标识 (用户名 / 邮箱 / 手机号)
+        <input id="auth-identifier" value="designer@bgssai.example" />
+      </label>
+      <label>
+        密码（静态示意，请勿填写真实密码）
+        <input id="auth-secret" type="password" placeholder="不发送或保存输入内容" />
+      </label>
+      <div class="row">
+        <button id="btn-login" type="button">查看登录流程示意</button>
+        <button id="btn-logout" class="secondary" type="button">撤销会话并退出</button>
+      </div>
+      <div id="auth-output" class="status-box">等待认证操作...</div>
+      <p>真实 SMS/email 与微信、支付宝、抖音、百度 OAuth 适配器尚未实现。验证码 send/login/verify，以及四渠道 authorize/callback 与通用 begin/callback 别名均返回 503；不返回 code、token 或 session，不能通过自填身份或验证码登录。</p>
+    </section>
+
+    <section aria-label="受控模型目录与区域路由">
+      <h2>2. 受控 AI 模型与区域路由 (OPS-COMP-01)</h2>
+      <label>
+        授权模型目录 (/api/ai/models)
+        <select id="ai-model">
+          <option value="qwen-plus" data-region="cn">Qwen Plus (CN 区域受控节点)</option>
+          <option value="deepseek-v3" data-region="cn">DeepSeek V3 (CN 区域受控节点)</option>
+          <option value="gpt-4o-mini" data-region="global">GPT-4o Mini (Global 区域受控节点)</option>
+          <option value="claude-3-5-sonnet" data-region="global">Claude 3.5 Sonnet (Global 区域受控节点)</option>
+        </select>
+      </label>
+      <label>
+        图层文案提示词
+        <textarea id="ai-prompt" rows="2">生成海山日落主题海报标题建议</textarea>
+      </label>
+      <button id="btn-ai" type="button">请求受控 AI 建议</button>
+      <div id="ai-output" class="status-box">仅允许已登记的区域网关节点，错误统一携带 request_id 且不暴露底层凭证。</div>
+    </section>
+
+    <section aria-label="统一客服桥接">
+      <h2>3. 统一客服桥接 product_code=compositor (OPS-COMP-02)</h2>
+      <label>
+        工单主题
+        <input id="support-subject" value="导出 PNG 图层透明通道咨询" />
+      </label>
+      <label>
+        咨询消息
+        <textarea id="support-message" rows="2">请问如何在保留半透明阴影的情况下导出图层？</textarea>
+      </label>
+      <div class="row">
+        <button id="btn-support-create" type="button">创建工单并投递桥接</button>
+        <button id="btn-support-webhook" class="secondary" type="button">模拟客服回调 (含幂等校验)</button>
+      </div>
+      <div id="support-output" class="status-box">等待工单操作...</div>
+    </section>
+
+    <section aria-label="Bot 与 MCP 扩展编辑工具">
+      <h2>4. Bot / MCP 扩展编辑与预览回滚 (OPS-COMP-02)</h2>
+      <label>
+        MCP 工具动作
+        <select id="mcp-action">
+          <option value="create_project">create_project - 新建云端项目</option>
+          <option value="add_text_layer">add_text_layer - 新增文字图层</option>
+          <option value="add_shape_layer">add_shape_layer - 新增形状图层</option>
+          <option value="transform_layer">transform_layer - 调整变换矩阵</option>
+          <option value="adjust_filter">adjust_filter - 调整颜色与模糊滤镜</option>
+          <option value="export_asset">export_asset - 导出 .bgcomp / png / jpeg</option>
+          <option value="preview_destructive_edit">preview_destructive_edit - 预览破坏性裁切/合并</option>
+          <option value="confirm_destructive_edit">confirm_destructive_edit - 确认应用预览变更</option>
+          <option value="undo">undo / rollback - 撤销并回滚历史版本</option>
+        </select>
+      </label>
+      <button id="btn-mcp-run" type="button">执行 Bot / MCP 工具</button>
+      <div id="mcp-output" class="status-box">所有工具强制校验 PAT / Bot 令牌及用户归属隔离。</div>
+    </section>
+  </main>
+  <script>
+    const state = {
+      session: null,
+      tickets: [],
+      processedEvents: new Set(),
+      previewId: null,
+      historyDepth: 1
+    };
+
+    document.getElementById("btn-login").addEventListener("click", () => {
+      const channel = document.getElementById("auth-channel").value;
+      if (!["local_password", "chat"].includes(channel)) {
+        document.getElementById("auth-output").textContent = JSON.stringify(
+          { status: 503, error: "真实认证适配器尚未实现，此通道暂不可用" }, null, 2
+        );
+        return;
+      }
+      const id = document.getElementById("auth-identifier").value.trim() || "user";
+      state.session = {
+        preview_only: true,
+        auth_channel: channel,
+        user_id: channel + ":" + id,
+        grants: { sync: false, ai: false, bot: false }
+      };
+      document.getElementById("session-badge").textContent =
+        "登录结果示意（未实际登录）: " + state.session.user_id + " (" + channel + ")";
+      document.getElementById("auth-output").textContent = JSON.stringify(
+        { status: "preview_only", result: state.session },
+        null,
+        2
+      );
+    });
+
+    document.getElementById("btn-logout").addEventListener("click", () => {
+      const previous = state.session;
+      state.session = null;
+      document.getElementById("session-badge").textContent =
+        "当前模式: 离线本地编辑 (无需登录)";
+      document.getElementById("auth-output").textContent = JSON.stringify(
+        { ok: true, revoked_channel: previous ? previous.auth_channel : null },
+        null,
+        2
+      );
+    });
+
+    document.getElementById("btn-ai").addEventListener("click", () => {
+      const select = document.getElementById("ai-model");
+      const option = select.options[select.selectedIndex];
+      const model = select.value;
+      const region = option.getAttribute("data-region");
+      const prompt = document.getElementById("ai-prompt").value.trim();
+      const requestId = "req_" + Math.random().toString(36).slice(2, 10);
+      document.getElementById("ai-output").textContent = JSON.stringify(
+        {
+          request_id: requestId,
+          product_code: "compositor",
+          model_id: model,
+          region: region,
+          routed_hub: region === "cn" ? "https://hub-cn.bgssai.internal" : "https://hub-global.bgssai.internal",
+          text: "建议标题：" + prompt.slice(0, 24) + " - 光影层次版"
+        },
+        null,
+        2
+      );
+    });
+
+    document.getElementById("btn-support-create").addEventListener("click", () => {
+      const subject = document.getElementById("support-subject").value.trim();
+      const message = document.getElementById("support-message").value.trim();
+      const ticket = {
+        ticket_id: "tkt_" + (state.tickets.length + 1),
+        product_code: "compositor",
+        owner_id: state.session ? state.session.user_id : "local:demo",
+        subject: subject,
+        status: "open",
+        delivery_status: "delivered",
+        messages: [{ sender_role: "user", content: message }]
+      };
+      state.tickets.push(ticket);
+      document.getElementById("support-output").textContent = JSON.stringify(ticket, null, 2);
+    });
+
+    document.getElementById("btn-support-webhook").addEventListener("click", () => {
+      const eventId = "evt_support_reply_001";
+      const deduplicated = state.processedEvents.has(eventId);
+      state.processedEvents.add(eventId);
+      document.getElementById("support-output").textContent = JSON.stringify(
+        {
+          ok: true,
+          product_code: "compositor",
+          event_id: eventId,
+          deduplicated: deduplicated,
+          status: "in_progress",
+          agent_reply: deduplicated
+            ? "重复回调已幂等拦截，未重复写入消息"
+            : "客服回复：PNG 导出默认保留 Alpha 透明通道。"
+        },
+        null,
+        2
+      );
+    });
+
+    document.getElementById("btn-mcp-run").addEventListener("click", () => {
+      const action = document.getElementById("mcp-action").value;
+      if (action === "preview_destructive_edit") {
+        state.previewId = "prv_" + Math.random().toString(36).slice(2, 10);
+      } else if (action === "confirm_destructive_edit") {
+        state.historyDepth += 1;
+      } else if (action === "undo" && state.historyDepth > 1) {
+        state.historyDepth -= 1;
+      }
+      document.getElementById("mcp-output").textContent = JSON.stringify(
+        {
+          ok: true,
+          product_code: "compositor",
+          action: action,
+          preview_id: state.previewId,
+          history_depth: state.historyDepth,
+          etag: "etag_" + Math.random().toString(16).slice(2, 10)
+        },
+        null,
+        2
+      );
+    });
+  </script>
+</body>
+</html>
