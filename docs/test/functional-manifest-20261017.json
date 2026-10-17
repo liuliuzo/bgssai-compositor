@@ -1,0 +1,773 @@
+{
+  "schema": 1,
+  "date": "2026-10-17",
+  "repo": "liuliuzo/bgssai-compositor",
+  "local_repo": "bgssai-compossitor",
+  "baseline": "06cd48221314f05c10b5c8516d5ac9b79353183a",
+  "requirement_file": "docs/feature/opc-requirements-20261017.md",
+  "requirements": [
+    {
+      "id": "REQ-COMPOSITOR-PRODUCT-001",
+      "title": "图层画布编辑",
+      "cases": [
+        "TC-COMPOSITOR-PRODUCT-001-P",
+        "TC-COMPOSITOR-PRODUCT-001-N"
+      ],
+      "file": "docs/test/TC-opc-product-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-PRODUCT-002",
+      "title": "工程保存恢复",
+      "cases": [
+        "TC-COMPOSITOR-PRODUCT-002-P",
+        "TC-COMPOSITOR-PRODUCT-002-N"
+      ],
+      "file": "docs/test/TC-opc-product-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-PRODUCT-003",
+      "title": "图像导出",
+      "cases": [
+        "TC-COMPOSITOR-PRODUCT-003-P",
+        "TC-COMPOSITOR-PRODUCT-003-N"
+      ],
+      "file": "docs/test/TC-opc-product-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-PRODUCT-004",
+      "title": "AI编辑与回执",
+      "cases": [
+        "TC-COMPOSITOR-PRODUCT-004-P",
+        "TC-COMPOSITOR-PRODUCT-004-N"
+      ],
+      "file": "docs/test/TC-opc-product-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-COMMON-001",
+      "title": "自助注册与本地账号",
+      "cases": [
+        "TC-COMPOSITOR-COMMON-001-P",
+        "TC-COMPOSITOR-COMMON-001-N"
+      ],
+      "file": "docs/test/TC-opc-common-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-COMMON-002",
+      "title": "邮箱与手机验证码",
+      "cases": [
+        "TC-COMPOSITOR-COMMON-002-P",
+        "TC-COMPOSITOR-COMMON-002-N"
+      ],
+      "file": "docs/test/TC-opc-common-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-COMMON-003",
+      "title": "平台管理权限隔离",
+      "cases": [
+        "TC-COMPOSITOR-COMMON-003-P",
+        "TC-COMPOSITOR-COMMON-003-N"
+      ],
+      "file": "docs/test/TC-opc-common-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-COMMON-004",
+      "title": "第三方授权独立会话",
+      "cases": [
+        "TC-COMPOSITOR-COMMON-004-P",
+        "TC-COMPOSITOR-COMMON-004-N"
+      ],
+      "file": "docs/test/TC-opc-common-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-COMMON-005",
+      "title": "数据归属与失效会话",
+      "cases": [
+        "TC-COMPOSITOR-COMMON-005-P",
+        "TC-COMPOSITOR-COMMON-005-N"
+      ],
+      "file": "docs/test/TC-opc-common-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-COMMON-006",
+      "title": "微信区域登录",
+      "cases": [
+        "TC-COMPOSITOR-COMMON-006-P",
+        "TC-COMPOSITOR-COMMON-006-N"
+      ],
+      "file": "docs/test/TC-opc-common-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-COMMON-007",
+      "title": "抖音区域登录",
+      "cases": [
+        "TC-COMPOSITOR-COMMON-007-P",
+        "TC-COMPOSITOR-COMMON-007-N"
+      ],
+      "file": "docs/test/TC-opc-common-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-COMMON-008",
+      "title": "百度区域登录",
+      "cases": [
+        "TC-COMPOSITOR-COMMON-008-P",
+        "TC-COMPOSITOR-COMMON-008-N"
+      ],
+      "file": "docs/test/TC-opc-common-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-COMMON-009",
+      "title": "支付宝区域登录",
+      "cases": [
+        "TC-COMPOSITOR-COMMON-009-P",
+        "TC-COMPOSITOR-COMMON-009-N"
+      ],
+      "file": "docs/test/TC-opc-common-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-COMMON-010",
+      "title": "同区模型原生能力",
+      "cases": [
+        "TC-COMPOSITOR-COMMON-010-P",
+        "TC-COMPOSITOR-COMMON-010-N"
+      ],
+      "file": "docs/test/TC-opc-common-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-COMMON-011",
+      "title": "无感选模与倍率",
+      "cases": [
+        "TC-COMPOSITOR-COMMON-011-P",
+        "TC-COMPOSITOR-COMMON-011-N"
+      ],
+      "file": "docs/test/TC-opc-common-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-COMMON-012",
+      "title": "额度与用量可追溯",
+      "cases": [
+        "TC-COMPOSITOR-COMMON-012-P",
+        "TC-COMPOSITOR-COMMON-012-N"
+      ],
+      "file": "docs/test/TC-opc-common-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-COMMON-013",
+      "title": "语言与真实状态",
+      "cases": [
+        "TC-COMPOSITOR-COMMON-013-P",
+        "TC-COMPOSITOR-COMMON-013-N"
+      ],
+      "file": "docs/test/TC-opc-common-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-COMMON-014",
+      "title": "Bot下载与安装信息",
+      "cases": [
+        "TC-COMPOSITOR-COMMON-014-P",
+        "TC-COMPOSITOR-COMMON-014-N"
+      ],
+      "file": "docs/test/TC-opc-common-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-COMMON-015",
+      "title": "Bot最小授权托管",
+      "cases": [
+        "TC-COMPOSITOR-COMMON-015-P",
+        "TC-COMPOSITOR-COMMON-015-N"
+      ],
+      "file": "docs/test/TC-opc-common-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-PLATFORM-001",
+      "title": "Windows核心交付",
+      "cases": [
+        "TC-COMPOSITOR-PLATFORM-001-P",
+        "TC-COMPOSITOR-PLATFORM-001-N"
+      ],
+      "file": "docs/test/TC-opc-platform-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-PLATFORM-002",
+      "title": "macOS核心交付",
+      "cases": [
+        "TC-COMPOSITOR-PLATFORM-002-P",
+        "TC-COMPOSITOR-PLATFORM-002-N"
+      ],
+      "file": "docs/test/TC-opc-platform-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-PLATFORM-003",
+      "title": "Linux核心交付",
+      "cases": [
+        "TC-COMPOSITOR-PLATFORM-003-P",
+        "TC-COMPOSITOR-PLATFORM-003-N"
+      ],
+      "file": "docs/test/TC-opc-platform-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-PLATFORM-004",
+      "title": "iOS核心交付",
+      "cases": [
+        "TC-COMPOSITOR-PLATFORM-004-P",
+        "TC-COMPOSITOR-PLATFORM-004-N"
+      ],
+      "file": "docs/test/TC-opc-platform-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-PLATFORM-005",
+      "title": "Android核心交付",
+      "cases": [
+        "TC-COMPOSITOR-PLATFORM-005-P",
+        "TC-COMPOSITOR-PLATFORM-005-N"
+      ],
+      "file": "docs/test/TC-opc-platform-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-REGRESSION-001",
+      "title": "用量回执持久化",
+      "cases": [
+        "TC-COMPOSITOR-REGRESSION-001-P",
+        "TC-COMPOSITOR-REGRESSION-001-N"
+      ],
+      "file": "docs/test/TC-feature-gaps-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-REGRESSION-002",
+      "title": "恢复快照与资源边界",
+      "cases": [
+        "TC-COMPOSITOR-REGRESSION-002-P",
+        "TC-COMPOSITOR-REGRESSION-002-N"
+      ],
+      "file": "docs/test/TC-feature-gaps-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-REGRESSION-003",
+      "title": "签名更新与回滚",
+      "cases": [
+        "TC-COMPOSITOR-REGRESSION-003-P",
+        "TC-COMPOSITOR-REGRESSION-003-N"
+      ],
+      "file": "docs/test/TC-feature-gaps-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-REGRESSION-004",
+      "title": "离线与未实现登录真实性",
+      "cases": [
+        "TC-COMPOSITOR-REGRESSION-004-P",
+        "TC-COMPOSITOR-REGRESSION-004-N"
+      ],
+      "file": "docs/test/TC-feature-gaps-20261017.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-REGRESSION-005",
+      "title": "独立授权与破坏性编辑",
+      "cases": [
+        "TC-COMPOSITOR-REGRESSION-005-P",
+        "TC-COMPOSITOR-REGRESSION-005-N"
+      ],
+      "file": "docs/test/TC-feature-gaps-20261017.md"
+    }
+  ],
+  "cases": [
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-001-P",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-001",
+      "file": "TC-opc-product-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-001-N",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-001",
+      "file": "TC-opc-product-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-002-P",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-002",
+      "file": "TC-opc-product-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-002-N",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-002",
+      "file": "TC-opc-product-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-003-P",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-003",
+      "file": "TC-opc-product-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-003-N",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-003",
+      "file": "TC-opc-product-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-004-P",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-004",
+      "file": "TC-opc-product-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-004-N",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-004",
+      "file": "TC-opc-product-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-001-P",
+      "requirement": "REQ-COMPOSITOR-COMMON-001",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-001-N",
+      "requirement": "REQ-COMPOSITOR-COMMON-001",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-002-P",
+      "requirement": "REQ-COMPOSITOR-COMMON-002",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-002-N",
+      "requirement": "REQ-COMPOSITOR-COMMON-002",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-003-P",
+      "requirement": "REQ-COMPOSITOR-COMMON-003",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-003-N",
+      "requirement": "REQ-COMPOSITOR-COMMON-003",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-004-P",
+      "requirement": "REQ-COMPOSITOR-COMMON-004",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-004-N",
+      "requirement": "REQ-COMPOSITOR-COMMON-004",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-005-P",
+      "requirement": "REQ-COMPOSITOR-COMMON-005",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-005-N",
+      "requirement": "REQ-COMPOSITOR-COMMON-005",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-006-P",
+      "requirement": "REQ-COMPOSITOR-COMMON-006",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-006-N",
+      "requirement": "REQ-COMPOSITOR-COMMON-006",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-007-P",
+      "requirement": "REQ-COMPOSITOR-COMMON-007",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-007-N",
+      "requirement": "REQ-COMPOSITOR-COMMON-007",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-008-P",
+      "requirement": "REQ-COMPOSITOR-COMMON-008",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-008-N",
+      "requirement": "REQ-COMPOSITOR-COMMON-008",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-009-P",
+      "requirement": "REQ-COMPOSITOR-COMMON-009",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-009-N",
+      "requirement": "REQ-COMPOSITOR-COMMON-009",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-010-P",
+      "requirement": "REQ-COMPOSITOR-COMMON-010",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-010-N",
+      "requirement": "REQ-COMPOSITOR-COMMON-010",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-011-P",
+      "requirement": "REQ-COMPOSITOR-COMMON-011",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-011-N",
+      "requirement": "REQ-COMPOSITOR-COMMON-011",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-012-P",
+      "requirement": "REQ-COMPOSITOR-COMMON-012",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-012-N",
+      "requirement": "REQ-COMPOSITOR-COMMON-012",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-013-P",
+      "requirement": "REQ-COMPOSITOR-COMMON-013",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-013-N",
+      "requirement": "REQ-COMPOSITOR-COMMON-013",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-014-P",
+      "requirement": "REQ-COMPOSITOR-COMMON-014",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-014-N",
+      "requirement": "REQ-COMPOSITOR-COMMON-014",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-015-P",
+      "requirement": "REQ-COMPOSITOR-COMMON-015",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-COMMON-015-N",
+      "requirement": "REQ-COMPOSITOR-COMMON-015",
+      "file": "TC-opc-common-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-PLATFORM-001-P",
+      "requirement": "REQ-COMPOSITOR-PLATFORM-001",
+      "file": "TC-opc-platform-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-PLATFORM-001-N",
+      "requirement": "REQ-COMPOSITOR-PLATFORM-001",
+      "file": "TC-opc-platform-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-PLATFORM-002-P",
+      "requirement": "REQ-COMPOSITOR-PLATFORM-002",
+      "file": "TC-opc-platform-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-PLATFORM-002-N",
+      "requirement": "REQ-COMPOSITOR-PLATFORM-002",
+      "file": "TC-opc-platform-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-PLATFORM-003-P",
+      "requirement": "REQ-COMPOSITOR-PLATFORM-003",
+      "file": "TC-opc-platform-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-PLATFORM-003-N",
+      "requirement": "REQ-COMPOSITOR-PLATFORM-003",
+      "file": "TC-opc-platform-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-PLATFORM-004-P",
+      "requirement": "REQ-COMPOSITOR-PLATFORM-004",
+      "file": "TC-opc-platform-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-PLATFORM-004-N",
+      "requirement": "REQ-COMPOSITOR-PLATFORM-004",
+      "file": "TC-opc-platform-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-PLATFORM-005-P",
+      "requirement": "REQ-COMPOSITOR-PLATFORM-005",
+      "file": "TC-opc-platform-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-PLATFORM-005-N",
+      "requirement": "REQ-COMPOSITOR-PLATFORM-005",
+      "file": "TC-opc-platform-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-REGRESSION-001-P",
+      "requirement": "REQ-COMPOSITOR-REGRESSION-001",
+      "file": "TC-feature-gaps-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-REGRESSION-001-N",
+      "requirement": "REQ-COMPOSITOR-REGRESSION-001",
+      "file": "TC-feature-gaps-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-REGRESSION-002-P",
+      "requirement": "REQ-COMPOSITOR-REGRESSION-002",
+      "file": "TC-feature-gaps-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-REGRESSION-002-N",
+      "requirement": "REQ-COMPOSITOR-REGRESSION-002",
+      "file": "TC-feature-gaps-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-REGRESSION-003-P",
+      "requirement": "REQ-COMPOSITOR-REGRESSION-003",
+      "file": "TC-feature-gaps-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-REGRESSION-003-N",
+      "requirement": "REQ-COMPOSITOR-REGRESSION-003",
+      "file": "TC-feature-gaps-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-REGRESSION-004-P",
+      "requirement": "REQ-COMPOSITOR-REGRESSION-004",
+      "file": "TC-feature-gaps-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-REGRESSION-004-N",
+      "requirement": "REQ-COMPOSITOR-REGRESSION-004",
+      "file": "TC-feature-gaps-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-REGRESSION-005-P",
+      "requirement": "REQ-COMPOSITOR-REGRESSION-005",
+      "file": "TC-feature-gaps-20261017.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-REGRESSION-005-N",
+      "requirement": "REQ-COMPOSITOR-REGRESSION-005",
+      "file": "TC-feature-gaps-20261017.md",
+      "status": "待测",
+      "kind": "N"
+    }
+  ],
+  "coverage": [
+    {
+      "source": "docs/feature/COMP-02-04-05.md",
+      "title": "COMP-02 / COMP-04 / COMP-05 实现与验收",
+      "classification": "专项或共同契约用例",
+      "legacy": [],
+      "requirements": [
+        "REQ-COMPOSITOR-REGRESSION-002",
+        "REQ-COMPOSITOR-REGRESSION-003"
+      ],
+      "cases": [
+        "TC-COMPOSITOR-REGRESSION-002-P",
+        "TC-COMPOSITOR-REGRESSION-002-N",
+        "TC-COMPOSITOR-REGRESSION-003-P",
+        "TC-COMPOSITOR-REGRESSION-003-N"
+      ]
+    },
+    {
+      "source": "docs/feature/model-price-receipts.md",
+      "title": "AI 模型价格与回执",
+      "classification": "专项或共同契约用例",
+      "legacy": [],
+      "requirements": [
+        "REQ-COMPOSITOR-REGRESSION-001"
+      ],
+      "cases": [
+        "TC-COMPOSITOR-REGRESSION-001-P",
+        "TC-COMPOSITOR-REGRESSION-001-N"
+      ]
+    },
+    {
+      "source": "docs/feature/OPS-COMP-01-02.md",
+      "title": "OPS-COMP-01 与 OPS-COMP-02 特性规格说明",
+      "classification": "专项或共同契约用例",
+      "legacy": [],
+      "requirements": [
+        "REQ-COMPOSITOR-REGRESSION-004",
+        "REQ-COMPOSITOR-REGRESSION-005"
+      ],
+      "cases": [
+        "TC-COMPOSITOR-REGRESSION-004-P",
+        "TC-COMPOSITOR-REGRESSION-004-N",
+        "TC-COMPOSITOR-REGRESSION-005-P",
+        "TC-COMPOSITOR-REGRESSION-005-N"
+      ]
+    },
+    {
+      "source": "docs/feature/README.md",
+      "title": "功能需求",
+      "classification": "索引或模板，不作为独立业务功能",
+      "legacy": [],
+      "requirements": [],
+      "cases": []
+    }
+  ],
+  "historical_suites": [],
+  "progress": {
+    "待测": 58,
+    "通过": 0,
+    "失败": 0,
+    "阻塞": 0,
+    "不适用": 0
+  },
+  "suite_counts": {
+    "TC-feature-gaps-20261017.md": {
+      "待测": 10,
+      "通过": 0,
+      "失败": 0,
+      "阻塞": 0,
+      "不适用": 0
+    },
+    "TC-opc-common-20261017.md": {
+      "待测": 30,
+      "通过": 0,
+      "失败": 0,
+      "阻塞": 0,
+      "不适用": 0
+    },
+    "TC-opc-platform-20261017.md": {
+      "待测": 10,
+      "通过": 0,
+      "失败": 0,
+      "阻塞": 0,
+      "不适用": 0
+    },
+    "TC-opc-product-20261017.md": {
+      "待测": 8,
+      "通过": 0,
+      "失败": 0,
+      "阻塞": 0,
+      "不适用": 0
+    }
+  },
+  "design_only": true
+}
