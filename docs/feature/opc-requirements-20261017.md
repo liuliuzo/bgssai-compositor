@@ -59,7 +59,7 @@ PS式图像编辑软件，当前Windows PC为起点，最终覆盖五端；规�
 ## 规则边界与依赖
 
 - 正常、失败、边界、权限和重复执行分别验证；历史用例和历史执行结果保留。新增用例统一待测。
-- 所有应用最终覆盖Windows、macOS、Linux、iOS、Android，Support除外；共享/管理仓不计为应用。Media由PC承担桌面三端、Android/iOS各自承担移动端，Web提供浏览器平台，不重复要求每个Media仓另造五端。Web/桌面/CLI是Build的产品形态，不能替代操作系统交付矩阵。
+- 所有应用最终覆盖Windows、macOS、Linux、iOS、Android，Support除外；共享/管理仓不计为应用。Tube由PC承担桌面三端、Android/iOS各自承担移动端，Web提供浏览器平台，不重复要求每个Tube仓另造五端。Web/桌面/CLI是Build的产品形态，不能替代操作系统交付矩阵。
 - **平台交付分阶段（2026-10-17 用户决策）：** 本轮只改进本仓已有平台工程（`electron/`、`clients/ios`、`clients/android`），不新建平台工程、不产出签名安装制品；独立可安装交付与真机验收列入后续阶段，对应 PLATFORM 用例记延期。
 - 主流模型、Office版本、招聘平台API等开放集合，须维护逐项能力、限制、样例和实测证据；缺凭据、设备、接口或样本记阻塞，不能以有限样例宣称全部支持。
 - 模型实际路由严格同区，故障不跨区回退。普通应用不要求用户配置中枢；Tokenhub本身和Developer门户可展示API管理概念。
