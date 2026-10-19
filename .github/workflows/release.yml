@@ -39,8 +39,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     env:
-      CSC_LINK: ${{ runner.os == 'Windows' && secrets.WINDOWS_CSC_LINK || secrets.MAC_CSC_LINK }}
-      CSC_KEY_PASSWORD: ${{ runner.os == 'Windows' && secrets.WINDOWS_CSC_PASSWORD || secrets.MAC_CSC_PASSWORD }}
+      # Job env can read matrix, not runner. runner.os here makes GitHub reject the file.
+      CSC_LINK: ${{ matrix.os == 'windows-latest' && secrets.WINDOWS_CSC_LINK || secrets.MAC_CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ matrix.os == 'windows-latest' && secrets.WINDOWS_CSC_PASSWORD || secrets.MAC_CSC_PASSWORD }}
       APPLE_ID: ${{ secrets.APPLE_ID }}
       APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -83,7 +84,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
-      COMPOSITOR_ANDROID_KEYSTORE: ${{ runner.temp }}/compositor.jks
       COMPOSITOR_ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
       COMPOSITOR_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       COMPOSITOR_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -99,6 +99,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Set Android keystore path
+        run: echo "COMPOSITOR_ANDROID_KEYSTORE=${{ runner.temp }}/compositor.jks" >> "$GITHUB_ENV"
       - env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: node -e 'const fs=require("fs");if(!process.env.KEYSTORE_BASE64||!process.env.COMPOSITOR_ANDROID_STORE_PASSWORD||!process.env.COMPOSITOR_ANDROID_KEY_ALIAS||!process.env.COMPOSITOR_ANDROID_KEY_PASSWORD)throw Error("Android signing credentials required");fs.writeFileSync(process.env.COMPOSITOR_ANDROID_KEYSTORE,Buffer.from(process.env.KEYSTORE_BASE64,"base64"))'
