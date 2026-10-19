@@ -3129,12 +3129,17 @@ export function App() {
                     : ""}
                 </p>
                 <p className="muted">
-                  {importReport.support === "partial"
-                    ? "部分支持：只保留只读图层目录和一张已栅格化的合成图。目录不是可编辑图层。"
-                    : importReport.support === "editable"
-                      ? "可编辑导入。"
-                      : "未导入可编辑图层。"}
+                  {importReport.support === "editable"
+                    ? "已导入声明的可编辑子集（8 位 RGB 像素图层、简单用户蒙版、带 Txt 的简单文字）。不是完整 Photoshop 兼容。"
+                    : importReport.support === "partial" && importReport.projectJson
+                      ? "部分支持：声明子集内的图层可编辑，其余项已列入损失，不会标成可编辑。"
+                      : importReport.support === "partial"
+                        ? "部分支持：只保留只读图层目录和一张已栅格化的合成图。目录不是可编辑图层。"
+                        : "未导入可编辑图层。结构目录不会标成可编辑。"}
                 </p>
+                {importReport.retained.length > 0 && (
+                  <p className="muted">保留：{importReport.retained.join("、")}</p>
+                )}
                 {importReport.lost.length > 0 && (
                   <p className="muted">损失：{importReport.lost.join("、")}</p>
                 )}
@@ -3171,32 +3176,51 @@ export function App() {
                   </Button>
                   <Button
                     className="primary"
-                    disabled={!importReport.ok || !importReport.imageDataUrl}
+                    disabled={
+                      !importReport.ok ||
+                      (!importReport.projectJson && !importReport.imageDataUrl)
+                    }
                     onClick={() =>
                       void run(async () => {
                         const report = importReport;
-                        if (!report?.imageDataUrl) return;
+                        if (!report?.projectJson && !report?.imageDataUrl) return;
                         const asLayer = !!(
                           window as unknown as { __importAsLayer?: boolean }
                         ).__importAsLayer;
-                        if (asLayer) {
-                          await editor.importImage(
-                            report.imageDataUrl,
-                            report.fileName,
-                          );
-                          setWelcome(false);
-                          message("已按转换报告导入为图层");
-                        } else {
-                          if (!(await guard())) return;
-                          await editor.openImage(
-                            report.imageDataUrl,
-                            report.fileName,
-                          );
-                          window.desktop?.resetProjectPath();
-                          await recovery.clear();
-                          lastRecovery.current = null;
-                          showDocument();
-                          message("已按转换报告打开图像");
+                        if (report.projectJson) {
+                          if (asLayer) {
+                            await editor.importProjectLayers(report.projectJson);
+                            setWelcome(false);
+                            message("已导入声明子集中的可编辑图层");
+                          } else {
+                            if (!(await guard())) return;
+                            await editor.load(report.projectJson, false);
+                            window.desktop?.resetProjectPath();
+                            await recovery.clear();
+                            lastRecovery.current = null;
+                            showDocument();
+                            message("已按转换报告打开可编辑子集");
+                          }
+                        } else if (report.imageDataUrl) {
+                          if (asLayer) {
+                            await editor.importImage(
+                              report.imageDataUrl,
+                              report.fileName,
+                            );
+                            setWelcome(false);
+                            message("已按转换报告导入为图层");
+                          } else {
+                            if (!(await guard())) return;
+                            await editor.openImage(
+                              report.imageDataUrl,
+                              report.fileName,
+                            );
+                            window.desktop?.resetProjectPath();
+                            await recovery.clear();
+                            lastRecovery.current = null;
+                            showDocument();
+                            message("已按转换报告打开图像");
+                          }
                         }
                         setModal(null);
                         setImportReport(null);
@@ -3346,8 +3370,10 @@ export function App() {
                   可导出；导入 JPEG/PNG/TIFF/WebP/HEIC/SVG/PSD 时显示转换报告。
                 </div>
                 <p className="help-limit">
-                  RAW 与 CMYK 仍不支持；PSD 导入为尽力而为（列出图层并栅格化合成图），项目使用
-                  .bgcomp 保存。参考 robbietilton/Compositor 的编辑工作流。
+                  RAW 与 CMYK 仍不支持。PSD 可编辑子集仅为 8 位 RGB 的原始或 PackBits
+                  像素图层、简单用户蒙版和带 Txt 的简单文字；调整图层、智能对象、图层效果、PSB
+                  与 16 位不会标成可编辑。项目使用 .bgcomp 保存。参考 robbietilton/Compositor
+                  的编辑工作流。
                 </p>
                 <div className="modal-actions">
                   <Button className="primary" onClick={() => setModal(null)}>
