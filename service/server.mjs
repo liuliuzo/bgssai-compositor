@@ -269,20 +269,29 @@ export function createService(config, transport = fetch) {
 
   const buildModelCatalog = () => {
     const base = Array.isArray(config.models)
-      ? config.models.map((item) => ({
-          id: String(item.id ?? item.model_id),
-          model_id: String(item.model_id ?? item.id),
-          name: String(item.name ?? item.display_name ?? item.id),
-          display_name: String(item.display_name ?? item.name ?? item.id),
-          provider: String(item.provider ?? "bgssai"),
-          region: String(item.region ?? "cn"),
-          capabilities: Array.isArray(item.capabilities)
-            ? item.capabilities
-            : ["text", "copywriting", "layer_layout"],
-          max_tokens: Number(item.max_tokens ?? 2048),
-          is_default: Boolean(item.is_default),
-        }))
-      : DEFAULT_MODEL_CATALOG.map((item) => ({ ...item }));
+      ? config.models.map((item) => {
+          const region = String(item.region ?? "cn");
+          return {
+            id: String(item.id ?? item.model_id),
+            model_id: String(item.model_id ?? item.id),
+            name: String(item.name ?? item.display_name ?? item.id),
+            display_name: String(item.display_name ?? item.name ?? item.id),
+            provider: String(item.provider ?? "bgssai"),
+            region,
+            hub_provider: region === "cn" ? "bgssai-tokenhub-cn" : "bgssai-tokenhub-global",
+            supported_multipliers: [0.5, 1.0, 1.5],
+            capabilities: Array.isArray(item.capabilities)
+              ? item.capabilities
+              : ["text", "copywriting", "layer_layout", "inpainting", "layer_generation"],
+            max_tokens: Number(item.max_tokens ?? 2048),
+            is_default: Boolean(item.is_default),
+          };
+        })
+      : DEFAULT_MODEL_CATALOG.map((item) => ({
+          ...item,
+          hub_provider: item.region === "cn" ? "bgssai-tokenhub-cn" : "bgssai-tokenhub-global",
+          supported_multipliers: [0.5, 1.0, 1.5],
+        }));
     if (
       config.hubModel &&
       !base.some(
@@ -298,7 +307,9 @@ export function createService(config, transport = fetch) {
         display_name: config.hubModel,
         provider: "configured",
         region: "cn",
-        capabilities: ["text", "copywriting", "layer_layout"],
+        hub_provider: "bgssai-tokenhub-cn",
+        supported_multipliers: [0.5, 1.0, 1.5],
+        capabilities: ["text", "copywriting", "layer_layout", "inpainting", "layer_generation"],
         max_tokens: 2048,
         is_default: true,
       });
@@ -2447,11 +2458,15 @@ export function createService(config, transport = fetch) {
           status: "preview",
           applied: false,
           scope,
+          task_kind: scope === "selection" ? "inpainting" : "layer_generation",
           document_revision: documentRevision,
           preview_image: previewImage,
+          image: previewImage,
+          preview: previewImage,
           model: selectedModel.model_id,
           model_id: selectedModel.model_id,
           region: selectedModel.region,
+          hub_provider: selectedModel.region === "cn" ? "bgssai-tokenhub-cn" : "bgssai-tokenhub-global",
           product_code: PRODUCT_CODE,
           request_id,
           billing: billingResult,

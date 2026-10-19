@@ -6,6 +6,11 @@ import {
   localToWorld,
   worldToLocal,
   parseProject,
+  recoverProjectState,
+  createSnapshotEnvelope,
+  verifySnapshotEnvelope,
+  HistoryRingBuffer,
+  MAX_RECOVERY_DIMENSION,
   type ProjectData,
   type Geometry,
 } from "../src/project.ts";
@@ -115,6 +120,22 @@ test("brush coordinates correctly invert rotated, scaled and flipped layer trans
       }
     }
 });
+test("worldToLocal safely guards against degenerate zero or non-finite scale", () => {
+  const zeroScaleGeometry: Geometry = {
+    x: 10,
+    y: 20,
+    width: 100,
+    height: 80,
+    scaleX: 0,
+    scaleY: Number.NaN,
+    rotation: 45,
+    flipX: false,
+    flipY: false,
+  };
+  const pt = worldToLocal({ x: 50, y: 50 }, zeroScaleGeometry);
+  assert.ok(Number.isFinite(pt.x));
+  assert.ok(Number.isFinite(pt.y));
+});
 test("validates text layer contents and fonts", () => {
   const data = project();
   data.layers[0].text = {
@@ -131,3 +152,113 @@ test("validates text layer contents and fonts", () => {
   data.layers[0].text.color = "#zzzzzz";
   assert.throws(() => parseProject(JSON.stringify(data)), /样式/);
 });
+test("recoverProjectState clamps bounds, quarantines corrupted layers, and preserves valid layers", () => {
+  const corruptedPayload = {
+    format: "bgssai-compositor",
+    version: 1,
+    name: "恢复测试",
+    width: 99999,
+    height: -50,
+    layers: [
+      {
+        id: "healthy-1",
+        name: "正常图层",
+        visible: true,
+        locked: false,
+        opacity: 3.5,
+        blend: "unsupported-mode",
+        x: 10,
+        y: 20,
+        scaleX: 0,
+        scaleY: -5,
+        rotation: 720,
+        flipX: false,
+        flipY: false,
+        adjustments: { brightness: 500, contrast: -500 },
+        image: png,
+        maskImage: "data:image/png;base64,corrupted-mask",
+        maskEnabled: true,
+      },
+      {
+        id: "healthy-1",
+        name: "重名图层",
+        visible: true,
+        locked: false,
+        opacity: -0.4,
+        blend: "screen",
+        x: 0,
+        y: 0,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0,
+        flipX: false,
+        flipY: false,
+        adjustments: defaults(),
+        image: png,
+      },
+      {
+        id: "broken-layer",
+        name: "损坏图层",
+        image: "data:image/png;base64,not-a-valid-png",
+      },
+    ],
+  };
+
+  const result = recoverProjectState(corruptedPayload);
+  assert.equal(result.recovered, true);
+  assert.equal(result.project.width, MAX_RECOVERY_DIMENSION);
+  assert.equal(result.project.height, 1);
+  assert.equal(result.project.layers.length, 2);
+  assert.deepEqual(result.quarantinedLayerIds, ["broken-layer"]);
+
+  const first = result.project.layers[0];
+  assert.equal(first.id, "healthy-1");
+  assert.equal(first.opacity, 1);
+  assert.equal(first.blend, "source-over");
+  assert.equal(first.scaleX, 1);
+  assert.equal(first.scaleY, 0.01);
+  assert.equal(first.adjustments.brightness, 100);
+  assert.equal(first.adjustments.contrast, -100);
+  assert.equal(first.maskImage, undefined);
+
+  const second = result.project.layers[1];
+  assert.equal(second.id, "healthy-1-recovered-2");
+  assert.equal(second.opacity, 0);
+});
+test("snapshot envelope verifies checksum and detects tampering", () => {
+  const serialized = JSON.stringify(project());
+  const envelope = createSnapshotEnvelope(serialized, 5, 1700000000000);
+  const verified = verifySnapshotEnvelope(envelope);
+  assert.equal(verified.valid, true);
+  assert.equal(verified.generation, 5);
+  assert.equal(verified.content, serialized);
+
+  const tampered = { ...envelope, content: serialized.replace("测试文档", "篡改文档") };
+  const badResult = verifySnapshotEnvelope(tampered);
+  assert.equal(badResult.valid, false);
+  assert.equal(badResult.reason, "checksum-mismatch");
+});
+test("HistoryRingBuffer bounds capacity, preserves redo on no-op commit, and validates integrity", () => {
+  const ring = new HistoryRingBuffer<string>("state-0", 3);
+  assert.equal(ring.canUndo(), false);
+  assert.equal(ring.commit("state-1"), true);
+  assert.equal(ring.commit("state-2"), true);
+  assert.equal(ring.undo(), "state-1");
+  assert.equal(ring.canRedo(), true);
+  // No-op commit with identical state must not wipe redo stack
+  assert.equal(ring.commit("state-1"), false);
+  assert.equal(ring.canRedo(), true);
+  assert.equal(ring.redo(), "state-2");
+
+  // Exceeding capacity evicts oldest undo entry while maintaining integrity
+  ring.commit("state-3");
+  ring.commit("state-4");
+  ring.commit("state-5");
+  assert.equal(ring.validateIntegrity(), true);
+  assert.equal(ring.depth().undo, 3);
+  assert.equal(ring.undo(), "state-4");
+  assert.equal(ring.undo(), "state-3");
+  assert.equal(ring.undo(), "state-2");
+  assert.equal(ring.undo(), null);
+});
+
