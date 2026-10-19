@@ -18,17 +18,61 @@ export interface ConversionIssue {
   detail?: string;
 }
 
+export interface ConversionLayer {
+  name: string;
+  kind: string;
+  /** False when the entry is only a catalog or a flattened composite. */
+  editable: boolean;
+  fidelity: "catalog" | "rasterized" | "editable";
+  note?: string;
+}
+
 export interface ConversionReport {
   format: ImportFormat;
   fileName: string;
   width?: number;
   height?: number;
-  layers: { name: string; kind: string; note?: string }[];
+  layers: ConversionLayer[];
   issues: ConversionIssue[];
+  retained: string[];
+  lost: string[];
+  /** partial / unsupported. PSD import is never full editable support. */
+  support: "partial" | "unsupported" | "editable";
   /** Rasterized composite ready for Editor.openImage / importImage when successful. */
   imageDataUrl?: string;
   /** True when the caller may proceed with imageDataUrl. */
   ok: boolean;
+}
+
+export function describePsdLayers(
+  names: string[],
+  compositeDecoded: boolean,
+): Pick<ConversionReport, "layers" | "retained" | "lost" | "support"> {
+  const catalog = names.map((name, index) => ({
+    name: name || `图层 ${index + 1}`,
+    kind: "catalog",
+    editable: false,
+    fidelity: "catalog" as const,
+    note: "只读结构目录，不是可编辑图层",
+  }));
+  const layers = compositeDecoded
+    ? [
+        ...catalog,
+        {
+          name: "合成图",
+          kind: "rasterized",
+          editable: false,
+          fidelity: "rasterized" as const,
+          note: "整图已栅格化，蒙版、混合模式和文字不能还原成可编辑图层",
+        },
+      ]
+    : catalog;
+  return {
+    layers,
+    retained: ["文件头尺寸", "图层名称目录"],
+    lost: ["逐层像素", "蒙版", "混合模式", "可编辑文字"],
+    support: compositeDecoded ? "partial" : "unsupported",
+  };
 }
 
 function detectFormat(name: string, dataUrl: string): ImportFormat {
@@ -271,37 +315,49 @@ async function importPsd(
 ): Promise<ConversionReport> {
   const bytes = dataUrlToBytes(dataUrl);
   const structure = parsePsdStructure(bytes);
+  const described = describePsdLayers(
+    structure.layers.map((layer) => layer.name),
+    false,
+  );
   const report: ConversionReport = {
     format: "psd",
     fileName,
     width: structure.width,
     height: structure.height,
-    layers: structure.layers.map((layer) => ({
-      name: layer.name,
-      kind: "raster",
-      note: "图层像素未单独导入，仅列出名称",
-    })),
+    layers: described.layers,
+    retained: described.retained,
+    lost: described.lost,
+    support: described.support,
     issues: [...structure.issues],
     ok: false,
   };
   try {
     const canvas = await decodeViaImageBitmap(dataUrl);
+    const decoded = describePsdLayers(
+      structure.layers.map((layer) => layer.name),
+      true,
+    );
+    report.layers = decoded.layers;
+    report.retained = decoded.retained;
+    report.lost = decoded.lost;
+    report.support = decoded.support;
     report.imageDataUrl = canvas.toDataURL("image/png");
     report.ok = true;
     report.issues.push({
       severity: "info",
-      message: "已栅格化为合成图导入；原 PSD 图层结构不可编辑。",
+      message: "已栅格化为合成图。只读图层目录不是可编辑图层。",
     });
   } catch {
+    report.support = "unsupported";
     report.issues.push({
       severity: "error",
       message:
-        "当前环境无法解码 PSD 合成像素。已列出图层名称；请在 Photoshop 中导出 PNG/TIFF 后导入。",
+        "当前环境无法解码 PSD 合成像素。已列出的只是只读结构，没有导入可编辑图层。",
     });
   }
   report.issues.push({
     severity: "warning",
-    message: "蒙版、混合模式与文字图层在 PSD 导入中按不支持处理。",
+    message: "蒙版、混合模式与文字图层在 PSD 导入中按不支持处理，不会标成完整支持。",
   });
   return report;
 }
@@ -316,6 +372,9 @@ export async function importWithReport(
     fileName,
     layers: [],
     issues: [],
+    retained: [],
+    lost: [],
+    support: "unsupported",
     ok: false,
   };
 
@@ -327,7 +386,7 @@ export async function importWithReport(
       base.width = canvas.width;
       base.height = canvas.height;
       base.imageDataUrl = canvas.toDataURL("image/png");
-      base.layers = [{ name: fileName, kind: "raster" }];
+      base.layers = [{ name: fileName, kind: "rasterized", editable: false, fidelity: "rasterized" }];
       base.ok = true;
       base.issues.push({
         severity: "info",
@@ -349,7 +408,7 @@ export async function importWithReport(
       base.width = canvas.width;
       base.height = canvas.height;
       base.imageDataUrl = canvas.toDataURL("image/png");
-      base.layers = [{ name: fileName, kind: "raster", note: "SVG 已栅格化" }];
+      base.layers = [{ name: fileName, kind: "rasterized", editable: false, fidelity: "rasterized", note: "SVG 已栅格化，不是可编辑路径" }];
       base.ok = true;
       base.issues.push({
         severity: "warning",
@@ -377,7 +436,7 @@ export async function importWithReport(
       base.height = dims.height;
       const canvas = await decodeViaImageBitmap(dataUrl);
       base.imageDataUrl = canvas.toDataURL("image/png");
-      base.layers = [{ name: fileName, kind: "raster" }];
+      base.layers = [{ name: fileName, kind: "rasterized", editable: false, fidelity: "rasterized" }];
       base.ok = true;
       return base;
     } catch (error) {
