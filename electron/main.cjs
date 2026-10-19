@@ -353,9 +353,14 @@ function setupIPC() {
   handle("file:save-project", async ({ name, content, saveAs }) => {
     if (typeof content !== "string" || Buffer.byteLength(content) > MAX_BYTES)
       throw new Error("项目过大（上限 128 MB）");
-    const parsed = JSON.parse(content);
-    if (parsed.format !== "bgssai-compositor" || parsed.version !== 1)
-      throw new Error("项目格式无效");
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      throw new Error("工程数据损坏，未保存为成功。");
+    }
+    if (!parsed || parsed.format !== "bgssai-compositor" || parsed.version !== 1)
+      throw new Error("工程数据损坏，未保存为成功。");
     let target = projectPath;
     if (!target || saveAs) {
       const result = await dialog.showSaveDialog(window, {
