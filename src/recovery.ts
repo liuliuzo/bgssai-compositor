@@ -1,7 +1,16 @@
-import { parseProject } from "./project";
+import {
+  computeSnapshotChecksum,
+  parseProject,
+  recoverProjectState,
+  type QuarantinedLayerReport,
+} from "./project";
 export interface Recovery {
   content: string;
   writtenAt: number;
+  checksum?: string;
+  sequence?: number;
+  salvaged?: boolean;
+  quarantinedLayers?: QuarantinedLayerReport[];
 }
 
 // IndexedDB transactions work offline in both native mobile WebViews and browsers.
@@ -38,27 +47,54 @@ export const recovery = {
     return transaction("readonly", (store, finish) => {
       const request = store.getAll();
       request.onsuccess = () => {
-        const valid = (request.result as Recovery[]).filter((entry) => {
+        const candidates = (request.result as Recovery[]).filter(
+          (entry) =>
+            entry &&
+            typeof entry.content === "string" &&
+            Number.isFinite(entry.writtenAt) &&
+            (!entry.checksum ||
+              entry.checksum === computeSnapshotChecksum(entry.content)),
+        );
+        const sorted = candidates.sort((a, b) => b.writtenAt - a.writtenAt);
+        for (const entry of sorted) {
           try {
             parseProject(entry.content);
-            return Number.isFinite(entry.writtenAt);
+            finish(entry);
+            return;
           } catch {
-            return false;
+            /* try next or salvage */
           }
-        });
-        finish(valid.sort((a, b) => b.writtenAt - a.writtenAt)[0] ?? null);
+        }
+        for (const entry of sorted) {
+          try {
+            const recovered = recoverProjectState(entry.content);
+            finish({
+              ...entry,
+              content: recovered.json,
+              salvaged: true,
+              quarantinedLayers: recovered.quarantinedLayers,
+            });
+            return;
+          } catch {
+            /* skip unrecoverable entry */
+          }
+        }
+        finish(null);
       };
     });
   },
   async write(content: string): Promise<number> {
     if (window.desktop) return window.desktop.writeRecovery(content);
     parseProject(content);
+    const checksum = computeSnapshotChecksum(content);
     return transaction("readwrite", (store, finish) => {
       const latest = store.get("latest");
       latest.onsuccess = () => {
-        if (latest.result) store.put(latest.result, "previous");
+        const prior = latest.result as Recovery | undefined;
+        if (prior) store.put(prior, "previous");
         const writtenAt = Date.now();
-        store.put({ content, writtenAt }, "latest");
+        const sequence = (prior?.sequence ?? 0) + 1;
+        store.put({ content, writtenAt, checksum, sequence }, "latest");
         finish(writtenAt);
       };
     });
@@ -71,3 +107,4 @@ export const recovery = {
     });
   },
 };
+

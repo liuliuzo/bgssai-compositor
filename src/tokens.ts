@@ -50,3 +50,30 @@ export function formatCompactTokens(value: number): string {
 export function tokenDisplayTitle(value: number): string {
   return formatExactTokens(value);
 }
+
+export type TokenQuotaPair = {
+  compact: string;
+  exact: string;
+  rawInteger: number | null;
+};
+
+/**
+ * Formats a token quota into both compact UI display (K/M/B, max 1 decimal, never 万)
+ * and exact integer representation for tooltips, logs, and API receipts.
+ */
+export function formatTokenQuotaPair(value: number | null | undefined): TokenQuotaPair {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return { compact: "—", exact: "—", rawInteger: null };
+  }
+  const intVal = Math.trunc(value);
+  return {
+    compact: formatCompactTokens(intVal),
+    exact: formatExactTokens(intVal),
+    rawInteger: intVal,
+  };
+}
+
+export function hasForbiddenWanUnit(formatted: string): boolean {
+  return formatted.includes("万") || formatted.includes("亿");
+}
+

@@ -6,7 +6,16 @@ import os from "node:os";
 import { randomUUID } from "node:crypto";
 // @ts-ignore Type-free service module.
 import { HubReceipts, complete } from "../service/hub-receipts.mjs";
-import { priceLabel, usageLabel } from "../src/usage.ts";
+import {
+  priceLabel,
+  usageLabel,
+  TOKENHUB_CN_ID,
+  SUPPORTED_MULTIPLIERS,
+  formatMultiplier,
+  isStandardMultiplier,
+  estimateBilledTokens,
+  aiTaskReceiptSummary,
+} from "../src/usage.ts";
 
 const config = { hubOrigin: "https://hub.example", hubKey: "original-key" };
 async function fixture(run: (directory: string) => Promise<void>) {
@@ -95,6 +104,41 @@ test("UI keeps unknown pricing and pending cash distinct from actual zero or fra
   assert.match(usageLabel({ id: "m", hub: "h", model: "m", request_id: "id", billing_status: "pending", reconciled: false, billed_tokens: 0 }), /实扣 0 token.*现金 待确认.*待对账/);
 });
 
+test("bgssai-tokenhub-cn multiplier transparency (0.5x / 1.0x / 1.5x) and K/M/B vs exact integer AI receipt formatting", () => {
+  assert.deepEqual(SUPPORTED_MULTIPLIERS, [0.5, 1.0, 1.5]);
+  assert.equal(formatMultiplier(0.5), "0.5x");
+  assert.equal(formatMultiplier(1), "1.0x");
+  assert.equal(formatMultiplier(1.5), "1.5x");
+  assert.equal(formatMultiplier(null), "倍率待配置");
+  assert.equal(isStandardMultiplier(0.5), true);
+  assert.equal(isStandardMultiplier(1.0), true);
+  assert.equal(isStandardMultiplier(1.5), true);
+  assert.equal(isStandardMultiplier(2.0), false);
+  assert.equal(estimateBilledTokens(1000, 1.5), 1500);
+  assert.equal(estimateBilledTokens(1000, 0.5), 500);
+
+  const summary = aiTaskReceiptSummary({
+    id: "qwen-plus",
+    model: "qwen-plus",
+    hub: "cn",
+    request_id: "req-1",
+    task_kind: "inpainting",
+    billing_multiplier: 1.5,
+    raw_tokens: 279_266_667,
+    billed_tokens: 418_900_000,
+    debit_fen: 1250,
+    currency: "CNY",
+    billing_status: "settled",
+    reconciled: true,
+  });
+  assert.equal(summary.provider, TOKENHUB_CN_ID);
+  assert.equal(summary.multiplierBadge, "1.5x");
+  assert.equal(summary.billedQuota.compact, "418.9M");
+  assert.equal(summary.billedQuota.exact, "418,900,000");
+  assert.equal(summary.billedQuota.rawInteger, 418_900_000);
+  assert.match(summary.summaryText, /bgssai-tokenhub-cn.*AI 局部重绘\/修补.*1\.5x.*418\.9M.*418,900,000/);
+});
+
 test("regional receipts recover only from a still configured origin with the original key", async () => fixture(async (directory) => {
   const regional = { ...config, hubGlobalOrigin: "https://global.example" };
   const calls: string[] = [];
@@ -113,3 +157,4 @@ test("regional receipts recover only from a still configured origin with the ori
   assert.deepEqual(calls, [`https://global.example/v1/usage/${record.request_id}`]);
   assert.equal((await store.list(record.owner))[0].billed_tokens, 12);
 }));
+

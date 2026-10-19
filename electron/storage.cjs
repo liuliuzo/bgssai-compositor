@@ -1,7 +1,11 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { randomUUID, createHash } = require("node:crypto");
-const { parseProject } = require("./project-validator.cjs");
+const {
+  parseProject,
+  recoverProjectState,
+  computeSnapshotChecksum,
+} = require("./project-validator.cjs");
 const MAX_BYTES = 128 * 1024 * 1024;
 const hash = (data) => createHash("sha256").update(data).digest("hex");
 
@@ -44,21 +48,38 @@ class RecoveryStore {
         await fs.unlink(path.join(this.directory, name)).catch(() => {});
     }
   }
-  async snapshots() {
+  async snapshots(options = {}) {
+    const allowSalvage = Boolean(options.allowSalvage);
     const entries = [];
     for (let slot = 0; slot < 2; slot++) {
       try {
         const target = path.join(this.directory, `snapshot-${slot}.json`);
         if ((await fs.stat(target)).size > MAX_BYTES * 2 + 2048) continue;
         const entry = JSON.parse(await fs.readFile(target, "utf8"));
-        validate(entry.content);
         if (
+          typeof entry.content !== "string" ||
           entry.sha256 !== hash(entry.content) ||
+          (entry.checksum &&
+            entry.checksum !== computeSnapshotChecksum(entry.content)) ||
           !Number.isSafeInteger(entry.sequence) ||
           !Number.isFinite(entry.writtenAt)
         )
           continue;
-        entries.push({ ...entry, slot });
+        try {
+          validate(entry.content);
+          entries.push({ ...entry, slot, salvaged: false, quarantinedLayers: [] });
+        } catch (err) {
+          if (!allowSalvage) throw err;
+          const recovered = recoverProjectState(entry.content);
+          entries.push({
+            ...entry,
+            content: recovered.json,
+            slot,
+            salvaged: true,
+            clampedCanvas: recovered.clampedCanvas,
+            quarantinedLayers: recovered.quarantinedLayers,
+          });
+        }
       } catch {
         /* Missing or damaged generation: use the other one. */
       }
@@ -71,6 +92,15 @@ class RecoveryStore {
       return (await this.snapshots())[0] ?? null;
     });
   }
+  readWithSalvage() {
+    return this.enqueue(async () => {
+      await this.init();
+      const strict = await this.snapshots({ allowSalvage: false });
+      if (strict[0]) return strict[0];
+      const salvaged = await this.snapshots({ allowSalvage: true });
+      return salvaged[0] ?? null;
+    });
+  }
   write(content) {
     return this.enqueue(async () => {
       validate(content);
@@ -80,6 +110,7 @@ class RecoveryStore {
       const entry = {
         content,
         sha256: hash(content),
+        checksum: computeSnapshotChecksum(content),
         sequence: (latest?.sequence ?? 0) + 1,
         writtenAt: Date.now(),
       };
@@ -106,3 +137,4 @@ class RecoveryStore {
   }
 }
 module.exports = { atomicWrite, RecoveryStore, hash, MAX_BYTES };
+
