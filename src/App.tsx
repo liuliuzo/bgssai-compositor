@@ -84,6 +84,7 @@ import {
   pdfBlobFromDataUrl,
   type ConversionReport,
 } from "./io";
+import { assertCanSave } from "./export-guard";
 
 const editor = new Editor();
 if (native) editor.memoryBudget = 320 * 1024 * 1024;
@@ -618,6 +619,7 @@ export function App() {
   }, [fit]);
   const save = useCallback(
     async (saveAs = false) => {
+      assertCanSave(editor.layers);
       const json = editor.serialize();
       if (window.desktop) {
         const result = await window.desktop.saveProject(
@@ -3058,7 +3060,7 @@ export function App() {
                   </>
                 )}
                 <p className="export-note">
-                  需要保留可编辑图层？请使用“保存项目”生成 .bgcomp 文件。
+                  需要保留可编辑图层？请使用“保存项目”生成 .bgcomp 文件。缺少字体、磁盘已满或工程损坏时会明确失败，不会记成导出成功。Windows、macOS、Linux、iOS、Android 的签名安装包当前都因没有签名证书而阻塞。
                 </p>
                 <div className="modal-actions">
                   <Button onClick={() => setModal(null)}>取消</Button>
@@ -3067,6 +3069,7 @@ export function App() {
                     disabled={working}
                     onClick={() =>
                       void run(async () => {
+                        assertCanSave(editor.layers);
                         if (format === "pdf") {
                           const jpeg = editor.exportImage(
                             "jpeg",
@@ -3125,12 +3128,22 @@ export function App() {
                     ? ` · ${importReport.width}×${importReport.height}`
                     : ""}
                 </p>
+                <p className="muted">
+                  {importReport.support === "partial"
+                    ? "部分支持：只保留只读图层目录和一张已栅格化的合成图。目录不是可编辑图层。"
+                    : importReport.support === "editable"
+                      ? "可编辑导入。"
+                      : "未导入可编辑图层。"}
+                </p>
+                {importReport.lost.length > 0 && (
+                  <p className="muted">损失：{importReport.lost.join("、")}</p>
+                )}
                 {importReport.layers.length > 0 && (
                   <div className="help-note">
                     <strong>图层</strong>
                     {importReport.layers.map((layer, i) => (
-                      <p key={`${layer.name}-${i}`}>
-                        {layer.name}
+                      <p key={`${layer.fidelity}-${layer.name}-${i}`}>
+                        {layer.editable ? "可编辑" : "只读"} · {layer.name}
                         <small>
                           {" "}
                           · {layer.kind}

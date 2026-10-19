@@ -19,6 +19,14 @@ async function atomicWrite(target, data) {
     await file.close();
     file = null;
     await fs.rename(temp, target);
+  } catch (error) {
+    const code = error && error.code;
+    if (code === "ENOSPC" || code === "EDQUOT") {
+      const full = new Error("磁盘空间不足，工程未写入，不能记为保存成功。");
+      full.code = "ENOSPC";
+      throw full;
+    }
+    throw error;
   } finally {
     await file?.close().catch(() => {});
     await fs.unlink(temp).catch(() => {});

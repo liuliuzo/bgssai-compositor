@@ -81,3 +81,7 @@
 - [#12：docs: remove redundant document copies](https://github.com/liuliuzo/bgssai-compositor/pull/12)（合并时间 2026-10-17T14:31:45Z）。
 
 验证范围：本次只验证新增文档的本地链接、已有需求 ID、证据路径及 git diff --check；未执行产品测试、模型调用、真实投递、投稿、支付或部署。
+
+## 2026-10-19 实现口径
+
+PSD 导入的图层目录标记为只读，合成图标记为已栅格化，报告列出保留项和损失项。缺少字体、磁盘已满或工程损坏时保存失败，不记成功。五端签名包标为阻塞。没有新增库表。
