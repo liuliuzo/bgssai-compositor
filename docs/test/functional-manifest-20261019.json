@@ -1,0 +1,102 @@
+{
+  "schema": 1,
+  "date": "2026-10-19",
+  "repo": "liuliuzo/bgssai-compositor",
+  "local_repo": "bgssai-compositor",
+  "baseline": "2026-10-17-functional-catalog",
+  "requirement_file": "docs/feature/opc-requirements-20261019.md",
+  "requirements": [
+    {
+      "id": "REQ-COMPOSITOR-PRODUCT-101",
+      "title": "PSD 可编辑与转换损失",
+      "cases": [
+        "TC-COMPOSITOR-PRODUCT-101-P",
+        "TC-COMPOSITOR-PRODUCT-101-N"
+      ],
+      "file": "docs/test/TC-opc-product-20261019.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-PRODUCT-102",
+      "title": "五端编辑与导出一致性",
+      "cases": [
+        "TC-COMPOSITOR-PRODUCT-102-P",
+        "TC-COMPOSITOR-PRODUCT-102-N"
+      ],
+      "file": "docs/test/TC-opc-product-20261019.md"
+    }
+  ],
+  "cases": [
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-101-P",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-101",
+      "file": "TC-opc-product-20261019.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-101-N",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-101",
+      "file": "TC-opc-product-20261019.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-102-P",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-102",
+      "file": "TC-opc-product-20261019.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-PRODUCT-102-N",
+      "requirement": "REQ-COMPOSITOR-PRODUCT-102",
+      "file": "TC-opc-product-20261019.md",
+      "status": "待测",
+      "kind": "N"
+    }
+  ],
+  "coverage": [
+    {
+      "source": "docs/feature/README.md",
+      "title": "功能需求",
+      "classification": "索引或模板，不作为独立业务功能",
+      "legacy": [],
+      "requirements": [],
+      "cases": []
+    },
+    {
+      "source": "docs/feature/opc-gap-audit-20261019.md",
+      "title": "2026-10-19 OPC 静态差距审计",
+      "classification": "差距审计补充，不是运行通过证明",
+      "legacy": [],
+      "requirements": [
+        "REQ-COMPOSITOR-PRODUCT-101",
+        "REQ-COMPOSITOR-PRODUCT-102"
+      ],
+      "cases": [
+        "TC-COMPOSITOR-PRODUCT-101-P",
+        "TC-COMPOSITOR-PRODUCT-101-N",
+        "TC-COMPOSITOR-PRODUCT-102-P",
+        "TC-COMPOSITOR-PRODUCT-102-N"
+      ]
+    }
+  ],
+  "historical_suites": [],
+  "progress": {
+    "待测": 4,
+    "通过": 0,
+    "失败": 0,
+    "阻塞": 0,
+    "不适用": 0
+  },
+  "suite_counts": {
+    "TC-opc-product-20261019.md": {
+      "待测": 4,
+      "通过": 0,
+      "失败": 0,
+      "阻塞": 0,
+      "不适用": 0
+    }
+  },
+  "design_only": true
+}
