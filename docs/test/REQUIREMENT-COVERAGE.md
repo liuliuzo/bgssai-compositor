@@ -10,3 +10,12 @@
 | [AI 模型价格与回执](../../docs/feature/model-price-receipts.md) | 专项或共同契约用例 | — | [REQ-COMPOSITOR-REGRESSION-001](TC-feature-gaps-20261017.md)：TC-COMPOSITOR-REGRESSION-001-P, TC-COMPOSITOR-REGRESSION-001-N |
 | [OPS-COMP-01 与 OPS-COMP-02 特性规格说明](../../docs/feature/OPS-COMP-01-02.md) | 专项或共同契约用例 | — | [REQ-COMPOSITOR-REGRESSION-004](TC-feature-gaps-20261017.md)：TC-COMPOSITOR-REGRESSION-004-P, TC-COMPOSITOR-REGRESSION-004-N<br>[REQ-COMPOSITOR-REGRESSION-005](TC-feature-gaps-20261017.md)：TC-COMPOSITOR-REGRESSION-005-P, TC-COMPOSITOR-REGRESSION-005-N |
 | [功能需求](../../docs/feature/README.md) | 索引或模板，不作为独立业务功能 | — | — |
+
+## 2026-10-19 功能目录增量
+
+本轮不删除、不改写上表 2026-10-17 各行，也不改写 20261017 用例结果。[2026-10-19 OPC 静态差距审计](../feature/opc-gap-audit-20261019.md) 的 AUD 编号对应下列新增需求。正反例见 [TC-opc-product-20261019.md](TC-opc-product-20261019.md)，结果均为待测。逐条矩阵见 [TRACEABILITY-20261019.md](TRACEABILITY-20261019.md)。
+
+| 来源 | 关联方式/范围 | 既有需求（原文未改） | 本轮需求与用例 |
+| --- | --- | --- | --- |
+| [OPC 静态差距审计](../feature/opc-gap-audit-20261019.md) | AUD-COMPOSITOR-20261019-01，细化多格式导入与 PSD 兼容 | [REQ-COMPOSITOR-PRODUCT-010](../feature/opc-requirements-20261017.md) | [REQ-COMPOSITOR-PRODUCT-101](../feature/opc-requirements-20261019.md)：[TC-COMPOSITOR-PRODUCT-101-P, TC-COMPOSITOR-PRODUCT-101-N](TC-opc-product-20261019.md) |
+| [OPC 静态差距审计](../feature/opc-gap-audit-20261019.md) | AUD-COMPOSITOR-20261019-02，细化图层编辑、保存恢复、导出与五端交付 | [REQ-COMPOSITOR-PRODUCT-001～003 与 PLATFORM-001～005](../feature/opc-requirements-20261017.md) | [REQ-COMPOSITOR-PRODUCT-102](../feature/opc-requirements-20261019.md)：[TC-COMPOSITOR-PRODUCT-102-P, TC-COMPOSITOR-PRODUCT-102-N](TC-opc-product-20261019.md) |

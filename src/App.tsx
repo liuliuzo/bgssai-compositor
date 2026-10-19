@@ -787,6 +787,7 @@ export function App() {
               session.token,
             );
             const dataUrl =
+              result.preview_image ||
               result.image ||
               result.dataUrl ||
               result.preview ||

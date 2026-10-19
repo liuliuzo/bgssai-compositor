@@ -587,7 +587,7 @@ export function Connections({
               </p>) : <p>模型价格待确认</p>}
             </div>}
             <label className="form-label">
-              AI 模型选择
+              AI 模型选择（区域路由 bgssai-tokenhub-cn，支持 0.5x / 1.0x / 1.5x 倍率核对）
               <select
                 aria-label="AI 模型选择"
                 value={selectedModel}
@@ -599,7 +599,7 @@ export function Connections({
                     key={item.model_id ?? item.id}
                     value={item.model_id ?? item.id}
                   >
-                    {item.display_name} ({item.region})
+                    {item.display_name} ({item.region}{typeof item.billing_multiplier === "number" && item.billing_multiplier > 0 ? ` · ${item.billing_multiplier}x` : ""})
                   </option>
                 ))}
               </select>
@@ -632,7 +632,7 @@ export function Connections({
               获取 AI 模型服务建议
             </button>
             <details>
-              <summary>用量与实扣（{usage.length} 条）</summary>
+              <summary>用量与实扣（{usage.length} 条 · K/M/B 紧凑展示与精确整数可核对）</summary>
               {usage.map((value) => {
                 const billed = tokenSpanProps(value.billed_tokens);
                 return (

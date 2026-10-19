@@ -407,13 +407,719 @@ export function localToWorld(p: Point, g: Geometry): Point {
   };
 }
 export function worldToLocal(p: Point, g: Geometry): Point {
+  const safeScaleX =
+    Number.isFinite(g.scaleX) && Math.abs(g.scaleX) >= 1e-6 ? g.scaleX : 1;
+  const safeScaleY =
+    Number.isFinite(g.scaleY) && Math.abs(g.scaleY) >= 1e-6 ? g.scaleY : 1;
   const rad = (-g.rotation * Math.PI) / 180;
   const cos = Math.cos(rad);
   const sin = Math.sin(rad);
-  const x = p.x - g.x - (g.width * g.scaleX) / 2;
-  const y = p.y - g.y - (g.height * g.scaleY) / 2;
+  const x = p.x - g.x - (g.width * safeScaleX) / 2;
+  const y = p.y - g.y - (g.height * safeScaleY) / 2;
   return {
-    x: (x * cos - y * sin) / (g.scaleX * (g.flipX ? -1 : 1)) + g.width / 2,
-    y: (x * sin + y * cos) / (g.scaleY * (g.flipY ? -1 : 1)) + g.height / 2,
+    x: (x * cos - y * sin) / (safeScaleX * (g.flipX ? -1 : 1)) + g.width / 2,
+    y: (x * sin + y * cos) / (safeScaleY * (g.flipY ? -1 : 1)) + g.height / 2,
   };
 }
+
+export const MAX_RECOVERY_DIMENSION = 16384;
+
+const BLEND_ALIASES: Record<string, Blend> = {
+  normal: "source-over",
+  "source-over": "source-over",
+  multiply: "multiply",
+  screen: "screen",
+  overlay: "overlay",
+  darken: "darken",
+  lighten: "lighten",
+  "color-dodge": "color-dodge",
+  "color dodge": "color-dodge",
+  colordodge: "color-dodge",
+  "color-burn": "color-burn",
+  "color burn": "color-burn",
+  colorburn: "color-burn",
+  "hard-light": "hard-light",
+  "hard light": "hard-light",
+  hardlight: "hard-light",
+  "soft-light": "soft-light",
+  "soft light": "soft-light",
+  softlight: "soft-light",
+  difference: "difference",
+  exclusion: "exclusion",
+  hue: "hue",
+  saturation: "saturation",
+  color: "color",
+  luminosity: "luminosity",
+};
+
+export function clampCanvasDimension(
+  value: unknown,
+  fallback = 1600,
+  max = MAX_RECOVERY_DIMENSION,
+): number {
+  const safeMax = Math.max(
+    1,
+    Math.min(MAX_RECOVERY_DIMENSION, Math.trunc(Number(max) || MAX_RECOVERY_DIMENSION)),
+  );
+  const safeFallback = Math.max(
+    1,
+    Math.min(safeMax, Math.trunc(Number(fallback) || 1600)),
+  );
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) return safeFallback;
+  const rounded = Math.round(numeric);
+  return Math.max(1, Math.min(safeMax, rounded));
+}
+
+export function clampOpacity(value: unknown, fallback = 1): number {
+  const safeFallback =
+    typeof fallback === "number" && Number.isFinite(fallback)
+      ? Math.max(0, Math.min(1, fallback))
+      : 1;
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) return safeFallback;
+  return Math.max(0, Math.min(1, numeric));
+}
+
+export function normalizeBlendMode(
+  value: unknown,
+  fallback: Blend = "source-over",
+): Blend {
+  if (typeof value !== "string") return fallback;
+  const key = value.trim().toLowerCase();
+  if (BLEND_ALIASES[key]) return BLEND_ALIASES[key];
+  const byLabel = BLENDS.find(([, label]) => label === value.trim());
+  if (byLabel) return byLabel[0];
+  return fallback;
+}
+
+export interface ClampedTransform {
+  x: number;
+  y: number;
+  scaleX: number;
+  scaleY: number;
+  rotation: number;
+  flipX: boolean;
+  flipY: boolean;
+  clamped: boolean;
+}
+
+export function clampLayerTransform(
+  input: Record<string, unknown>,
+): ClampedTransform {
+  let clamped = false;
+  const clampNum = (
+    raw: unknown,
+    min: number,
+    max: number,
+    fallback: number,
+  ): number => {
+    if (typeof raw !== "number" || !Number.isFinite(raw)) {
+      clamped = true;
+      return fallback;
+    }
+    if (raw < min || raw > max) {
+      clamped = true;
+      return Math.max(min, Math.min(max, raw));
+    }
+    return raw;
+  };
+  const x = clampNum(input.x, -100000, 100000, 0);
+  const y = clampNum(input.y, -100000, 100000, 0);
+  const scaleX = clampNum(input.scaleX, 0.01, 100, 1);
+  const scaleY = clampNum(input.scaleY, 0.01, 100, 1);
+  const rotation = clampNum(input.rotation, -36000, 36000, 0);
+  const flipX = typeof input.flipX === "boolean" ? input.flipX : false;
+  const flipY = typeof input.flipY === "boolean" ? input.flipY : false;
+  if (typeof input.flipX !== "boolean" || typeof input.flipY !== "boolean") {
+    clamped = true;
+  }
+  return { x, y, scaleX, scaleY, rotation, flipX, flipY, clamped };
+}
+
+/** Deterministic 64-bit dual-lane FNV-1a digest for browser/Node snapshot verification. */
+export function computeSnapshotChecksum(content: string): string {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x01000193;
+  for (let i = 0; i < content.length; i++) {
+    const code = content.charCodeAt(i);
+    h1 ^= code & 0xff;
+    h1 = Math.imul(h1, 0x01000193) >>> 0;
+    h2 ^= (code >>> 8) & 0xff;
+    h2 = Math.imul(h2, 0x01000193) >>> 0;
+  }
+  return `${h1.toString(16).padStart(8, "0")}${h2.toString(16).padStart(8, "0")}-${content.length.toString(16)}`;
+}
+
+export interface SnapshotEnvelope {
+  schemaVersion: 1;
+  content: string;
+  checksum: string;
+  sequence: number;
+  writtenAt: number;
+}
+
+export function createSnapshotEnvelope(
+  content: string,
+  sequence = 1,
+  writtenAt = Date.now(),
+): SnapshotEnvelope {
+  parseProject(content);
+  return {
+    schemaVersion: 1,
+    content,
+    checksum: computeSnapshotChecksum(content),
+    sequence: Math.max(1, Math.trunc(sequence)),
+    writtenAt: Number.isFinite(writtenAt) ? writtenAt : Date.now(),
+  };
+}
+
+export function verifySnapshotEnvelope(
+  envelope: unknown,
+  options: { allowSalvage?: boolean } = {},
+): {
+  valid: boolean;
+  salvaged: boolean;
+  envelope: SnapshotEnvelope | null;
+  project: ProjectData | null;
+  reason?: string;
+} {
+  if (!envelope || typeof envelope !== "object" || Array.isArray(envelope)) {
+    return { valid: false, salvaged: false, envelope: null, project: null, reason: "快照外壳不是有效对象" };
+  }
+  const raw = envelope as Record<string, unknown>;
+  if (typeof raw.content !== "string" || !raw.content) {
+    return { valid: false, salvaged: false, envelope: null, project: null, reason: "快照缺少项目内容" };
+  }
+  if (!Number.isFinite(raw.writtenAt)) {
+    return { valid: false, salvaged: false, envelope: null, project: null, reason: "快照写入时间戳无效" };
+  }
+  const expectedChecksum = computeSnapshotChecksum(raw.content);
+  if (typeof raw.checksum === "string" && raw.checksum !== expectedChecksum) {
+    return { valid: false, salvaged: false, envelope: null, project: null, reason: "快照校验和不匹配" };
+  }
+  const sequence =
+    typeof raw.sequence === "number" && Number.isSafeInteger(raw.sequence) && raw.sequence > 0
+      ? raw.sequence
+      : 1;
+  try {
+    const project = parseProject(raw.content);
+    return {
+      valid: true,
+      salvaged: false,
+      envelope: {
+        schemaVersion: 1,
+        content: raw.content,
+        checksum: expectedChecksum,
+        sequence,
+        writtenAt: raw.writtenAt as number,
+      },
+      project,
+    };
+  } catch (error) {
+    if (!options.allowSalvage) {
+      return {
+        valid: false,
+        salvaged: false,
+        envelope: null,
+        project: null,
+        reason: (error as Error).message,
+      };
+    }
+    try {
+      const recovered = recoverProjectState(raw.content);
+      return {
+        valid: true,
+        salvaged: true,
+        envelope: {
+          schemaVersion: 1,
+          content: recovered.json,
+          checksum: computeSnapshotChecksum(recovered.json),
+          sequence,
+          writtenAt: raw.writtenAt as number,
+        },
+        project: recovered.project,
+      };
+    } catch (salvageError) {
+      return {
+        valid: false,
+        salvaged: false,
+        envelope: null,
+        project: null,
+        reason: (salvageError as Error).message,
+      };
+    }
+  }
+}
+
+export interface QuarantinedLayerReport {
+  index: number;
+  id: string;
+  name: string;
+  reason: string;
+  action: "clamped" | "quarantined" | "mask_dropped";
+}
+
+export interface ProjectRecoveryResult {
+  project: ProjectData;
+  json: string;
+  recovered: boolean;
+  clampedCanvas: boolean;
+  quarantinedLayers: QuarantinedLayerReport[];
+}
+
+/**
+ * Non-destructive layer & canvas state recovery guard:
+ * - Clamps canvas dimensions within 1..16384 and fits document pixel budget (MAX_DIMENSION / MAX_DOCUMENT_PIXELS)
+ * - Clamps layer opacity (0..1), blend modes, transforms, and adjustments
+ * - Quarantines corrupted layers or corrupted layer masks without losing valid sibling layers
+ */
+export function recoverProjectState(
+  json: string,
+  options: { maxDimension?: number; fallbackPng?: string } = {},
+): ProjectRecoveryResult {
+  if (new TextEncoder().encode(json).byteLength > MAX_PROJECT_BYTES) {
+    throw new Error("项目文件超过 128 MB。");
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    throw new Error("项目文件不是有效的 JSON。");
+  }
+  const data = record(parsed);
+  if (data.format !== "bgssai-compositor" || data.version !== 1) {
+    throw new Error("不支持的项目格式或版本。");
+  }
+
+  const maxAllowed = clampCanvasDimension(
+    options.maxDimension ?? MAX_DIMENSION,
+    MAX_DIMENSION,
+    MAX_RECOVERY_DIMENSION,
+  );
+  const rawW = typeof data.width === "number" ? data.width : Number(data.width);
+  const rawH = typeof data.height === "number" ? data.height : Number(data.height);
+  let width = clampCanvasDimension(rawW, 1600, Math.min(maxAllowed, MAX_DIMENSION));
+  let height = clampCanvasDimension(rawH, 1000, Math.min(maxAllowed, MAX_DIMENSION));
+  let clampedCanvas =
+    !Number.isInteger(rawW) ||
+    !Number.isInteger(rawH) ||
+    width !== rawW ||
+    height !== rawH;
+  if (width * height > MAX_DOCUMENT_PIXELS) {
+    const ratio = Math.sqrt(MAX_DOCUMENT_PIXELS / (width * height));
+    width = Math.max(1, Math.min(MAX_DIMENSION, Math.floor(width * ratio)));
+    height = Math.max(1, Math.min(MAX_DIMENSION, Math.floor(height * ratio)));
+    clampedCanvas = true;
+  }
+
+  if (!Array.isArray(data.layers) || data.layers.length === 0) {
+    throw new Error("项目须包含 1–40 个图层。");
+  }
+
+  const quarantinedLayers: QuarantinedLayerReport[] = [];
+  const validLayers: LayerData[] = [];
+  const usedIds = new Set<string>();
+  let totalPixels = 0;
+
+  const rawLayers = data.layers.slice(0, MAX_LAYERS);
+  if (data.layers.length > MAX_LAYERS) {
+    quarantinedLayers.push({
+      index: MAX_LAYERS,
+      id: "overflow",
+      name: "超出上限图层",
+      reason: `图层数量超过 ${MAX_LAYERS} 上限，已截断多余图层`,
+      action: "quarantined",
+    });
+  }
+
+  for (let index = 0; index < rawLayers.length; index++) {
+    const rawItem = rawLayers[index];
+    if (!rawItem || typeof rawItem !== "object" || Array.isArray(rawItem)) {
+      quarantinedLayers.push({
+        index,
+        id: `layer-corrupt-${index + 1}`,
+        name: `损坏图层 ${index + 1}`,
+        reason: "图层记录不是有效对象",
+        action: "quarantined",
+      });
+      continue;
+    }
+    const layer = rawItem as Record<string, unknown>;
+    const rawName =
+      typeof layer.name === "string" && layer.name.trim()
+        ? layer.name.trim().slice(0, 200)
+        : `图层 ${index + 1}`;
+    let id =
+      typeof layer.id === "string" && layer.id.trim()
+        ? layer.id.trim().slice(0, 80)
+        : `layer-${index + 1}`;
+    let layerClamped = false;
+    const clampReasons: string[] = [];
+
+    if (usedIds.has(id)) {
+      id = `${id}-recovered-${index + 1}`;
+      layerClamped = true;
+      clampReasons.push("重复图层 ID 已重命名");
+    }
+
+    if (typeof layer.image !== "string") {
+      quarantinedLayers.push({
+        index,
+        id,
+        name: rawName,
+        reason: "缺少内嵌 PNG 图像数据",
+        action: "quarantined",
+      });
+      continue;
+    }
+
+    let imgDims: { width: number; height: number };
+    try {
+      imgDims = pngDimensions(layer.image);
+    } catch (error) {
+      quarantinedLayers.push({
+        index,
+        id,
+        name: rawName,
+        reason: (error as Error).message,
+        action: "quarantined",
+      });
+      continue;
+    }
+
+    if (totalPixels + imgDims.width * imgDims.height > MAX_LAYER_PIXELS) {
+      quarantinedLayers.push({
+        index,
+        id,
+        name: rawName,
+        reason: "图层累计像素超出 4800 万预算",
+        action: "quarantined",
+      });
+      continue;
+    }
+    totalPixels += imgDims.width * imgDims.height;
+    usedIds.add(id);
+
+    const opacity = clampOpacity(layer.opacity, 1);
+    if (layer.opacity !== opacity) {
+      layerClamped = true;
+      clampReasons.push("不透明度已钳制至 0..1");
+    }
+
+    const blend = normalizeBlendMode(layer.blend, "source-over");
+    if (layer.blend !== blend) {
+      layerClamped = true;
+      clampReasons.push("混合模式已归一化");
+    }
+
+    const transform = clampLayerTransform(layer);
+    if (transform.clamped) {
+      layerClamped = true;
+      clampReasons.push("几何变换参数已钳制至安全边界");
+    }
+
+    const rawAdj =
+      layer.adjustments && typeof layer.adjustments === "object" && !Array.isArray(layer.adjustments)
+        ? (layer.adjustments as Record<string, unknown>)
+        : {};
+    const clampAdj = (val: unknown, min: number, max: number, fb: number) => {
+      if (typeof val !== "number" || !Number.isFinite(val)) {
+        layerClamped = true;
+        return fb;
+      }
+      if (val < min || val > max) {
+        layerClamped = true;
+        return Math.max(min, Math.min(max, val));
+      }
+      return val;
+    };
+    const adjustments: Adjustments = {
+      brightness: clampAdj(rawAdj.brightness, -100, 100, 0),
+      contrast: clampAdj(rawAdj.contrast, -100, 100, 0),
+      saturation: clampAdj(rawAdj.saturation, -100, 200, 0),
+      blur: clampAdj(rawAdj.blur, 0, 50, 0),
+    };
+
+    const recoveredLayer: LayerData = {
+      id,
+      name: rawName,
+      visible: typeof layer.visible === "boolean" ? layer.visible : true,
+      locked: typeof layer.locked === "boolean" ? layer.locked : false,
+      opacity,
+      blend,
+      x: transform.x,
+      y: transform.y,
+      scaleX: transform.scaleX,
+      scaleY: transform.scaleY,
+      rotation: transform.rotation,
+      flipX: transform.flipX,
+      flipY: transform.flipY,
+      adjustments,
+      image: layer.image,
+    };
+
+    if (layer.kind !== undefined) {
+      if (
+        typeof layer.kind === "string" &&
+        ["raster", "text", "shape", "adjustment"].includes(layer.kind)
+      ) {
+        recoveredLayer.kind = layer.kind as LayerKind;
+      } else {
+        recoveredLayer.kind = "raster";
+        layerClamped = true;
+        clampReasons.push("无效图层类型已回退为 raster");
+      }
+    }
+
+    if (layer.text !== undefined) {
+      try {
+        recoveredLayer.text = parseText(layer.text);
+      } catch {
+        layerClamped = true;
+        clampReasons.push("损坏文字元数据已剥离并保留栅格像素");
+      }
+    }
+
+    if (layer.shape !== undefined) {
+      try {
+        recoveredLayer.shape = parseShape(layer.shape);
+      } catch {
+        layerClamped = true;
+        clampReasons.push("损坏形状元数据已剥离并保留栅格像素");
+      }
+    }
+
+    if (layer.adjustment !== undefined) {
+      try {
+        recoveredLayer.adjustment = parseAdjustment(layer.adjustment);
+      } catch {
+        recoveredLayer.adjustment = defaultAdjustment();
+        layerClamped = true;
+        clampReasons.push("损坏调整图层参数已重置为默认值");
+      }
+    }
+
+    if (layer.clipToBelow !== undefined) {
+      recoveredLayer.clipToBelow = Boolean(layer.clipToBelow);
+    }
+
+    if (layer.mask !== undefined) {
+      try {
+        const parsedMask = parseMask(layer.mask);
+        const maskSize = pngDimensions(parsedMask.image);
+        if (totalPixels + maskSize.width * maskSize.height <= MAX_LAYER_PIXELS) {
+          totalPixels += maskSize.width * maskSize.height;
+          recoveredLayer.mask = parsedMask;
+        } else {
+          quarantinedLayers.push({
+            index,
+            id,
+            name: rawName,
+            reason: "图层蒙版超出总像素预算，已剥离蒙版",
+            action: "mask_dropped",
+          });
+        }
+      } catch (maskError) {
+        quarantinedLayers.push({
+          index,
+          id,
+          name: rawName,
+          reason: `图层蒙版损坏已剥离：${(maskError as Error).message}`,
+          action: "mask_dropped",
+        });
+      }
+    }
+
+    if (layerClamped) {
+      quarantinedLayers.push({
+        index,
+        id,
+        name: rawName,
+        reason: clampReasons.join("；") || "图层属性已钳制修复",
+        action: "clamped",
+      });
+    }
+
+    validLayers.push(recoveredLayer);
+  }
+
+  if (validLayers.length === 0 && options.fallbackPng) {
+    const dims = pngDimensions(options.fallbackPng);
+    void dims;
+    validLayers.push({
+      id: "layer-recovered-fallback",
+      name: "恢复空白图层",
+      visible: true,
+      locked: false,
+      opacity: 1,
+      blend: "source-over",
+      x: 0,
+      y: 0,
+      scaleX: 1,
+      scaleY: 1,
+      rotation: 0,
+      flipX: false,
+      flipY: false,
+      adjustments: defaults(),
+      image: options.fallbackPng,
+    });
+  }
+
+  if (validLayers.length === 0) {
+    throw new Error("所有图层均已损坏，无法恢复有效图层。");
+  }
+
+  const projectName =
+    typeof data.name === "string" && data.name.trim()
+      ? data.name.trim().slice(0, 200)
+      : "恢复文档";
+
+  const project: ProjectData = {
+    format: "bgssai-compositor",
+    version: 1,
+    name: projectName,
+    width,
+    height,
+    layers: validLayers,
+  };
+  const serialized = JSON.stringify(project);
+  parseProject(serialized);
+  return {
+    project,
+    json: serialized,
+    recovered: clampedCanvas || quarantinedLayers.length > 0,
+    clampedCanvas,
+    quarantinedLayers,
+  };
+}
+
+export interface HistoryRingEntry {
+  json: string;
+  label: string;
+  selectedId: string;
+  sequence: number;
+}
+
+/**
+ * Bounded undo/redo ring buffer with strict cursor & byte budget invariants.
+ * Mirrors robbietilton/Compositor DocumentHistory semantics:
+ * - No-op commits preserve future redo entries
+ * - Trimming oldest entries adjusts the cursor in lockstep and retains at least 1 entry
+ */
+export class HistoryRingBuffer {
+  entries: HistoryRingEntry[] = [];
+  index = -1;
+  private nextSequence = 1;
+  readonly maxEntries: number;
+  maxBytes: number;
+
+  constructor(maxEntries = 30, maxBytes = 96 * 1024 * 1024) {
+    this.maxEntries = Math.max(1, Math.trunc(maxEntries));
+    this.maxBytes = Math.max(1024, Math.trunc(maxBytes));
+  }
+
+  get current(): HistoryRingEntry | null {
+    return this.index >= 0 && this.index < this.entries.length
+      ? this.entries[this.index]
+      : null;
+  }
+
+  get retainedBytes(): number {
+    return this.entries.reduce((total, entry) => total + entry.json.length * 2, 0);
+  }
+
+  get canUndo(): boolean {
+    return this.index > 0;
+  }
+
+  get canRedo(): boolean {
+    return this.index >= 0 && this.index < this.entries.length - 1;
+  }
+
+  reset(initial?: { json: string; label: string; selectedId: string }) {
+    this.entries = [];
+    this.index = -1;
+    if (initial) {
+      this.push(initial.json, initial.label, initial.selectedId);
+    }
+  }
+
+  push(json: string, label: string, selectedId: string): boolean {
+    if (!json || typeof json !== "string") {
+      throw new Error("历史快照内容不能为空。");
+    }
+    if (this.current?.json === json) {
+      // No-op edit: keep existing redo branch intact.
+      return false;
+    }
+    if (this.index < this.entries.length - 1) {
+      this.entries = this.entries.slice(0, this.index + 1);
+    }
+    this.entries.push({
+      json,
+      label: String(label || "编辑").slice(0, 100),
+      selectedId: String(selectedId || ""),
+      sequence: this.nextSequence++,
+    });
+    let bytes = this.retainedBytes;
+    while (
+      this.entries.length > 1 &&
+      (this.entries.length > this.maxEntries || bytes > this.maxBytes)
+    ) {
+      const removed = this.entries.shift()!;
+      bytes -= removed.json.length * 2;
+    }
+    this.index = this.entries.length - 1;
+    return true;
+  }
+
+  stepUndo(): HistoryRingEntry | null {
+    if (!this.canUndo) return null;
+    this.index -= 1;
+    return this.current;
+  }
+
+  stepRedo(): HistoryRingEntry | null {
+    if (!this.canRedo) return null;
+    this.index += 1;
+    return this.current;
+  }
+
+  validateIntegrity(): {
+    valid: boolean;
+    entryCount: number;
+    index: number;
+    retainedBytes: number;
+    issues: string[];
+  } {
+    const issues: string[] = [];
+    if (this.entries.length === 0 && this.index !== -1) {
+      issues.push("空历史栈游标必须为 -1");
+    }
+    if (
+      this.entries.length > 0 &&
+      (this.index < 0 || this.index >= this.entries.length)
+    ) {
+      issues.push(`历史游标 ${this.index} 超出范围 0..${this.entries.length - 1}`);
+    }
+    if (this.entries.length > this.maxEntries) {
+      issues.push(`历史条目数 ${this.entries.length} 超出上限 ${this.maxEntries}`);
+    }
+    for (let i = 0; i < this.entries.length; i++) {
+      const entry = this.entries[i];
+      if (!entry.json) issues.push(`历史条目 ${i} 缺少快照内容`);
+      if (i > 0 && entry.sequence <= this.entries[i - 1].sequence) {
+        issues.push(`历史条目 ${i} 序列号非单调递增`);
+      }
+    }
+    return {
+      valid: issues.length === 0,
+      entryCount: this.entries.length,
+      index: this.index,
+      retainedBytes: this.retainedBytes,
+      issues,
+    };
+  }
+}
+
