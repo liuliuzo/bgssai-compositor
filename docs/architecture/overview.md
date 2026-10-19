@@ -35,6 +35,12 @@ UTF-8 JSON，顶层为：
 
 格式解析器只保留已知字段，拒绝未知版本、重复 ID、无效数值、不支持的混合模式和非 PNG 图像。PNG 的 IHDR 在解码前检查尺寸并累计像素预算。格式版本必须匹配；不能把 Photoshop PSD 直接改后缀当作项目文件。
 
+## PSD 声明子集
+
+导入不把 PSD 当成 `.bgcomp`。`decodePsdSubset` 只把下列内容写成可编辑工程图层：版本 1、8 位、RGB、压缩为原始或 PackBits 的通道 0/1/2 与可选透明通道、通道 -2 且蒙版信息为 20 字节的用户蒙版、TySh 版本 1 描述符里的 `Txt ` 文字。字号、颜色和字体只读取 EngineData 中的 FontSize、Values 和 Name；未映射字体记入 missingFont，保存仍失败，不把文字栅格化后假装成功。
+
+转换报告分列保留项和损失项。只有图层名的结构目录保真度保持 catalog，不得标成 editable。CMYK、灰度、索引色、调整/填充图层、智能对象、图层效果、图层组、矢量蒙版、ZIP 压缩、PSB、16 位和 32 位明确不支持。损坏或超限输入在替换当前工程之前失败。该路径不新增数据库表。这不是完整 Photoshop 兼容，也不代表五端运行验收通过。
+
 ## 构建和后续扩展
 
 Windows 构建生成 NSIS 和 portable，macOS 生成 DMG / ZIP，Linux 生成 AppImage / DEB。手机共享同一渲染器和 bgcomp v1，通过 Capacitor 的离线资源、Filesystem / Share 输出。移动端使用响应式画布与可滚动属性面板。没有 Canvas filter 的环境通过软件颜色调整及三次盒式近似高斯模糊保持调整可编辑；模糊像素不承诺与 Chromium 完全相等。

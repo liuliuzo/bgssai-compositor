@@ -13,5 +13,5 @@
 <!-- OPC-20261019 START -->
 ## 2026-10-19 功能目录增量
 
-[opc-requirements-20261019.md](opc-requirements-20261019.md)：新增 REQ-COMPOSITOR-PRODUCT-101、REQ-COMPOSITOR-PRODUCT-102。仅需求与测试设计，4 条用例均为待测，不改写 20261017 原文与结果。
+[opc-requirements-20261019.md](opc-requirements-20261019.md)：REQ-COMPOSITOR-PRODUCT-101 的声明 PSD 子集已实现；REQ-COMPOSITOR-PRODUCT-102 与五端运行验收仍待测。不改写 20261017 原文与结果。没有新增数据库表。
 <!-- OPC-20261019 END -->

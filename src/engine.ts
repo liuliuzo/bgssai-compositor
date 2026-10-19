@@ -568,6 +568,35 @@ export class Editor {
     this.selectedId = layer.id;
     this.commit("导入图像");
   }
+  async importProjectLayers(json: string) {
+    const data = parseProject(json);
+    const decoded: Layer[] = [];
+    for (const layer of data.layers) decoded.push(await this.decodeLayer(layer));
+    const added = decoded.reduce((sum, layer) => {
+      let pixels = layer.canvas.width * layer.canvas.height;
+      if (layer.mask) pixels += layer.mask.canvas.width * layer.mask.canvas.height;
+      return sum + pixels;
+    }, 0);
+    if (
+      this.layers.length + decoded.length > MAX_LAYERS ||
+      this.pixelBudget + added > MAX_LAYER_PIXELS
+    )
+      throw new Error(
+        "图层上限为 40 个，总像素上限为 4800 万。请删除或合并一些图层。",
+      );
+    checkMemory(
+      estimateMemory(
+        this.pixelBudget + added,
+        this.width * this.height,
+        json.length * 2,
+        this.historyBytes,
+      ),
+      this.memoryBudget,
+    );
+    this.layers.push(...decoded);
+    this.selectedId = decoded[decoded.length - 1].id;
+    this.commit("导入 PSD 图层");
+  }
   addBlank() {
     const canvas = this.allocateLayer(this.width, this.height);
     this.assertBudget(canvas);

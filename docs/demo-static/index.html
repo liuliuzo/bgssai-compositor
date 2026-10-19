@@ -90,7 +90,7 @@
   <header>
     <div>
       <h1>BGSSAI Compositor</h1>
-      <small>PSD 导入只给出只读目录和已栅格化合成图，不把目录写成可编辑图层。缺字体、磁盘满或工程损坏不会记成保存成功。五端签名包当前阻塞。</small>
+      <small>PSD 可编辑子集仅含 8 位 RGB 像素图层、简单用户蒙版和带 Txt 的简单文字。结构目录不会标成可编辑。CMYK、调整图层、智能对象、图层效果、PSB 和 16 位仍不支持。缺字体、磁盘满或工程损坏不会记成保存成功。五端签名包当前阻塞。</small>
     </div>
     <div id="session-badge">当前模式: 离线本地编辑 (无需登录)</div>
   </header>
@@ -189,6 +189,15 @@
       </label>
       <button id="btn-mcp-run" type="button">执行 Bot / MCP 工具</button>
       <div id="mcp-output" class="status-box">所有工具强制校验 PAT / Bot 令牌及用户归属隔离。</div>
+    </section>
+
+    <section aria-label="PSD 导入报告">
+      <h2>5. PSD 声明子集导入报告</h2>
+      <p>不是完整 Photoshop 兼容。可编辑子集只包含 8 位 RGB 的原始或 PackBits 像素图层、简单用户蒙版，以及 TySh 中带 Txt 的简单文字。转换报告把保留项和损失项分开列出。只读结构目录不会标成可编辑。</p>
+      <div id="psd-report" class="status-box">保留：像素图层、简单用户蒙版、简单文字
+损失：CMYK、调整图层、智能对象、图层效果、PSB、16 位
+保真度：结构目录不是 editable</div>
+      <p>损坏或超限的 PSD 会拒绝导入，不覆盖当前工程。五端签名包与运行验收仍未通过。</p>
     </section>
   </main>
   <script>

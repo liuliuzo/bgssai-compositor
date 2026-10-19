@@ -1,5 +1,6 @@
-import { checkDimensions, MAX_PROJECT_BYTES } from "./project";
+import { checkDimensions, MAX_PROJECT_BYTES, parseProject } from "./project";
 import { imageDimensions } from "./image-header";
+import { decodePsdSubset } from "./psd-subset";
 
 export type ImportFormat =
   | "jpeg"
@@ -36,11 +37,16 @@ export interface ConversionReport {
   issues: ConversionIssue[];
   retained: string[];
   lost: string[];
-  /** partial / unsupported. PSD import is never full editable support. */
+  /**
+   * editable means the declared PSD subset, not full Photoshop compatibility.
+   * partial may be a rasterized composite or a subset plus itemized losses.
+   */
   support: "partial" | "unsupported" | "editable";
   /** Rasterized composite ready for Editor.openImage / importImage when successful. */
   imageDataUrl?: string;
-  /** True when the caller may proceed with imageDataUrl. */
+  /** Declared PSD subset as a compositor project. Structure-only catalogs never set this. */
+  projectJson?: string;
+  /** True when the caller may proceed with projectJson or imageDataUrl. */
   ok: boolean;
 }
 
@@ -314,38 +320,50 @@ async function importPsd(
   dataUrl: string,
 ): Promise<ConversionReport> {
   const bytes = dataUrlToBytes(dataUrl);
-  const structure = parsePsdStructure(bytes);
-  const described = describePsdLayers(
-    structure.layers.map((layer) => layer.name),
-    false,
-  );
+  const subset = decodePsdSubset(bytes, fileName);
   const report: ConversionReport = {
     format: "psd",
     fileName,
-    width: structure.width,
-    height: structure.height,
-    layers: described.layers,
-    retained: described.retained,
-    lost: described.lost,
-    support: described.support,
-    issues: [...structure.issues],
+    width: subset.width,
+    height: subset.height,
+    layers: subset.layers,
+    retained: subset.retained,
+    lost: subset.lost,
+    support: subset.support,
+    issues: subset.issues,
     ok: false,
   };
-  try {
-    const canvas = await decodeViaImageBitmap(dataUrl);
-    const decoded = describePsdLayers(
-      structure.layers.map((layer) => layer.name),
-      true,
-    );
-    report.layers = decoded.layers;
-    report.retained = decoded.retained;
-    report.lost = decoded.lost;
-    report.support = decoded.support;
-    report.imageDataUrl = canvas.toDataURL("image/png");
+  if (subset.project) {
+    const json = JSON.stringify(subset.project);
+    parseProject(json);
+    report.projectJson = json;
     report.ok = true;
     report.issues.push({
       severity: "info",
-      message: "已栅格化为合成图。只读图层目录不是可编辑图层。",
+      message: "已导入声明子集中的可编辑图层。结构目录不会被标成可编辑。",
+    });
+    return report;
+  }
+  if (subset.blocked) return report;
+  try {
+    const canvas = await decodeViaImageBitmap(dataUrl);
+    report.layers = [
+      ...subset.layers,
+      {
+        name: "合成图",
+        kind: "rasterized",
+        editable: false,
+        fidelity: "rasterized",
+        note: "整图已栅格化，不是可编辑图层",
+      },
+    ];
+    report.support = "partial";
+    report.imageDataUrl = canvas.toDataURL("image/png");
+    report.ok = true;
+    if (!report.lost.includes("逐层可编辑像素")) report.lost.push("逐层可编辑像素");
+    report.issues.push({
+      severity: "info",
+      message: "没有可编辑子集图层，仅栅格化合成图。目录不是可编辑图层。",
     });
   } catch {
     report.support = "unsupported";
@@ -355,10 +373,6 @@ async function importPsd(
         "当前环境无法解码 PSD 合成像素。已列出的只是只读结构，没有导入可编辑图层。",
     });
   }
-  report.issues.push({
-    severity: "warning",
-    message: "蒙版、混合模式与文字图层在 PSD 导入中按不支持处理，不会标成完整支持。",
-  });
   return report;
 }
 
