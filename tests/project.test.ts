@@ -10,7 +10,8 @@ import {
   createSnapshotEnvelope,
   verifySnapshotEnvelope,
   HistoryRingBuffer,
-  MAX_RECOVERY_DIMENSION,
+  MAX_DIMENSION,
+  computeSnapshotChecksum,
   type ProjectData,
   type Geometry,
 } from "../src/project.ts";
@@ -153,6 +154,38 @@ test("validates text layer contents and fonts", () => {
   assert.throws(() => parseProject(JSON.stringify(data)), /样式/);
 });
 test("recoverProjectState clamps bounds, quarantines corrupted layers, and preserves valid layers", () => {
+  const healthy = {
+    format: "bgssai-compositor" as const,
+    version: 1 as const,
+    name: "完好文档",
+    width: 128,
+    height: 96,
+    layers: [
+      {
+        id: "only",
+        name: "完好",
+        visible: true,
+        locked: false,
+        opacity: 1,
+        blend: "source-over" as const,
+        x: 0,
+        y: 0,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0,
+        flipX: false,
+        flipY: false,
+        adjustments: defaults(),
+        image: png,
+      },
+    ],
+  };
+  const clean = recoverProjectState(JSON.stringify(healthy));
+  assert.equal(clean.recovered, false);
+  assert.equal(clean.clampedCanvas, false);
+  assert.deepEqual(clean.quarantinedLayers, []);
+  assert.equal(clean.project.layers.length, 1);
+
   const corruptedPayload = {
     format: "bgssai-compositor",
     version: 1,
@@ -176,8 +209,7 @@ test("recoverProjectState clamps bounds, quarantines corrupted layers, and prese
         flipY: false,
         adjustments: { brightness: 500, contrast: -500 },
         image: png,
-        maskImage: "data:image/png;base64,corrupted-mask",
-        maskEnabled: true,
+        mask: { image: "data:image/png;base64,corrupted-mask" },
       },
       {
         id: "healthy-1",
@@ -204,61 +236,153 @@ test("recoverProjectState clamps bounds, quarantines corrupted layers, and prese
     ],
   };
 
-  const result = recoverProjectState(corruptedPayload);
+  const result = recoverProjectState(JSON.stringify(corruptedPayload));
   assert.equal(result.recovered, true);
-  assert.equal(result.project.width, MAX_RECOVERY_DIMENSION);
+  assert.equal(result.clampedCanvas, true);
+  assert.equal(result.project.width, MAX_DIMENSION);
   assert.equal(result.project.height, 1);
   assert.equal(result.project.layers.length, 2);
-  assert.deepEqual(result.quarantinedLayerIds, ["broken-layer"]);
+  assert.equal(
+    result.quarantinedLayers.some(
+      (item) => item.id === "broken-layer" && item.action === "quarantined",
+    ),
+    true,
+  );
+  assert.equal(
+    result.quarantinedLayers.some(
+      (item) => item.id === "healthy-1" && item.action === "mask_dropped",
+    ),
+    true,
+  );
 
   const first = result.project.layers[0];
   assert.equal(first.id, "healthy-1");
   assert.equal(first.opacity, 1);
   assert.equal(first.blend, "source-over");
-  assert.equal(first.scaleX, 1);
+  assert.equal(first.scaleX, 0.01);
   assert.equal(first.scaleY, 0.01);
+  assert.equal(first.rotation, 720);
   assert.equal(first.adjustments.brightness, 100);
   assert.equal(first.adjustments.contrast, -100);
-  assert.equal(first.maskImage, undefined);
+  assert.equal(first.mask, undefined);
 
   const second = result.project.layers[1];
   assert.equal(second.id, "healthy-1-recovered-2");
   assert.equal(second.opacity, 0);
+  assert.equal(second.blend, "screen");
+  assert.throws(() => recoverProjectState("{"), /不是有效的 JSON/);
+  assert.throws(
+    () =>
+      recoverProjectState(
+        JSON.stringify({ ...corruptedPayload, layers: [corruptedPayload.layers[2]] }),
+      ),
+    /所有图层均已损坏/,
+  );
 });
 test("snapshot envelope verifies checksum and detects tampering", () => {
   const serialized = JSON.stringify(project());
   const envelope = createSnapshotEnvelope(serialized, 5, 1700000000000);
+  assert.equal(envelope.sequence, 5);
+  assert.equal(envelope.checksum, computeSnapshotChecksum(serialized));
   const verified = verifySnapshotEnvelope(envelope);
   assert.equal(verified.valid, true);
-  assert.equal(verified.generation, 5);
-  assert.equal(verified.content, serialized);
+  assert.equal(verified.salvaged, false);
+  assert.equal(verified.envelope?.sequence, 5);
+  assert.equal(verified.envelope?.content, serialized);
+  assert.equal(verified.project?.name, "测试文档");
 
   const tampered = { ...envelope, content: serialized.replace("测试文档", "篡改文档") };
   const badResult = verifySnapshotEnvelope(tampered);
   assert.equal(badResult.valid, false);
-  assert.equal(badResult.reason, "checksum-mismatch");
+  assert.equal(badResult.reason, "快照校验和不匹配");
+  assert.equal(verifySnapshotEnvelope(null).reason, "快照外壳不是有效对象");
+  assert.equal(
+    verifySnapshotEnvelope({ ...envelope, content: "" }).reason,
+    "快照缺少项目内容",
+  );
+  assert.equal(
+    verifySnapshotEnvelope({ ...envelope, writtenAt: Number.NaN }).reason,
+    "快照写入时间戳无效",
+  );
+  assert.throws(() => createSnapshotEnvelope("{", 1, 1), /不是有效的 JSON/);
+
+  const damaged = JSON.stringify({
+    format: "bgssai-compositor",
+    version: 1,
+    name: "待抢救",
+    width: 99999,
+    height: 10,
+    layers: [
+      {
+        id: "keep",
+        name: "保留",
+        visible: true,
+        locked: false,
+        opacity: 1,
+        blend: "source-over",
+        x: 0,
+        y: 0,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0,
+        flipX: false,
+        flipY: false,
+        adjustments: defaults(),
+        image: png,
+      },
+    ],
+  });
+  const salvageEnvelope = {
+    schemaVersion: 1 as const,
+    content: damaged,
+    sequence: 2,
+    writtenAt: 1700000000000,
+  };
+  assert.equal(verifySnapshotEnvelope(salvageEnvelope).valid, false);
+  const salvaged = verifySnapshotEnvelope(salvageEnvelope, { allowSalvage: true });
+  assert.equal(salvaged.valid, true);
+  assert.equal(salvaged.salvaged, true);
+  assert.equal(salvaged.project?.width, MAX_DIMENSION);
+  assert.equal(salvaged.project?.layers[0].id, "keep");
 });
 test("HistoryRingBuffer bounds capacity, preserves redo on no-op commit, and validates integrity", () => {
-  const ring = new HistoryRingBuffer<string>("state-0", 3);
-  assert.equal(ring.canUndo(), false);
-  assert.equal(ring.commit("state-1"), true);
-  assert.equal(ring.commit("state-2"), true);
-  assert.equal(ring.undo(), "state-1");
-  assert.equal(ring.canRedo(), true);
-  // No-op commit with identical state must not wipe redo stack
-  assert.equal(ring.commit("state-1"), false);
-  assert.equal(ring.canRedo(), true);
-  assert.equal(ring.redo(), "state-2");
+  const ring = new HistoryRingBuffer(3);
+  assert.equal(ring.canUndo, false);
+  assert.equal(ring.canRedo, false);
+  assert.equal(ring.push("state-0", "初始", "layer"), true);
+  assert.equal(ring.canUndo, false);
+  assert.equal(ring.push("state-1", "第一步", "layer"), true);
+  assert.equal(ring.push("state-2", "第二步", "layer"), true);
+  assert.equal(ring.stepUndo()?.json, "state-1");
+  assert.equal(ring.canRedo, true);
+  assert.equal(ring.push("state-1", "第一步", "layer"), false);
+  assert.equal(ring.canRedo, true);
+  assert.equal(ring.stepRedo()?.json, "state-2");
 
-  // Exceeding capacity evicts oldest undo entry while maintaining integrity
-  ring.commit("state-3");
-  ring.commit("state-4");
-  ring.commit("state-5");
-  assert.equal(ring.validateIntegrity(), true);
-  assert.equal(ring.depth().undo, 3);
-  assert.equal(ring.undo(), "state-4");
-  assert.equal(ring.undo(), "state-3");
-  assert.equal(ring.undo(), "state-2");
-  assert.equal(ring.undo(), null);
+  assert.equal(ring.push("state-3", "第三步", "layer"), true);
+  assert.equal(ring.push("state-4", "第四步", "layer"), true);
+  assert.equal(ring.push("state-5", "第五步", "layer"), true);
+  const integrity = ring.validateIntegrity();
+  assert.equal(integrity.valid, true);
+  assert.equal(integrity.entryCount, 3);
+  assert.equal(integrity.issues.length, 0);
+  assert.deepEqual(
+    ring.entries.map((entry) => entry.json),
+    ["state-3", "state-4", "state-5"],
+  );
+  assert.equal(ring.stepUndo()?.json, "state-4");
+  assert.equal(ring.stepUndo()?.json, "state-3");
+  assert.equal(ring.stepUndo(), null);
+
+  const tight = new HistoryRingBuffer(10, 1024);
+  assert.equal(tight.push("a".repeat(400), "大", "layer"), true);
+  assert.equal(tight.push("b".repeat(400), "更大", "layer"), true);
+  assert.equal(tight.entries.length, 1);
+  assert.equal(tight.entries[0].json, "b".repeat(400));
+  assert.equal(tight.canUndo, false);
+  tight.index = 9;
+  const broken = tight.validateIntegrity();
+  assert.equal(broken.valid, false);
+  assert.ok(broken.issues.length > 0);
 });
 
