@@ -101,7 +101,9 @@ test("404 or a mismatched receipt remains pending and endpoint rotation does not
 test("UI keeps unknown pricing and pending cash distinct from actual zero or fractional multipliers", () => {
   assert.match(priceLabel({ id: "m", hub: "h", billing_multiplier: 0.5, billing_unit: "token", price_version: 7 }), /0.5×.*价格版本 7/);
   assert.match(priceLabel({ id: "m", hub: "h" }), /倍率待配置/);
-  assert.match(usageLabel({ id: "m", hub: "h", model: "m", request_id: "id", billing_status: "pending", reconciled: false, billed_tokens: 0 }), /实扣 0 token.*现金 待确认.*待对账/);
+  assert.match(usageLabel({ id: "m", hub: "h", model: "m", request_id: "id", billing_status: "pending", reconciled: false, billed_tokens: 0 }), /原始 待确认 额度.*实扣 0 额度.*现金 待确认.*待对账/);
+  assert.match(usageLabel({ id: "m", hub: "h", model: "m", request_id: "id", billing_status: "pending", reconciled: false, billed_tokens: 0, billing_unit: "token" }), /实扣 0 token/);
+  assert.doesNotMatch(usageLabel({ id: "m", hub: "h", model: "m", request_id: "id", billing_status: "pending", reconciled: false, billed_tokens: 0 }), /\btoken\b/);
 });
 
 test("bgssai-tokenhub-cn multiplier transparency (0.5x / 1.0x / 1.5x) and K/M/B vs exact integer AI receipt formatting", () => {

@@ -583,7 +583,7 @@ export function Connections({
             {current.grants.ai && <div aria-label="AI 模型价格">
               {models.length ? models.map((model) => <p key={model.id}>
                 {priceLabel(model)}
-                <br />输入 / 输出每百万 token：{model.input_fen_per_million == null ? "待配置" : model.input_fen_per_million / 100} / {model.output_fen_per_million == null ? "待配置" : model.output_fen_per_million / 100} {model.currency ?? ""}
+                <br />输入 / 输出每百万额度：{model.input_fen_per_million == null ? "待配置" : model.input_fen_per_million / 100} / {model.output_fen_per_million == null ? "待配置" : model.output_fen_per_million / 100} {model.currency ?? ""}
               </p>) : <p>模型价格待确认</p>}
             </div>}
             <label className="form-label">
@@ -666,7 +666,7 @@ export function Connections({
               </>
             )}
             <details open>
-              <summary>额度套餐（token）</summary>
+              <summary>额度套餐</summary>
               {balance ? (
                 <p>
                   当前套餐：{balance.package_name}
