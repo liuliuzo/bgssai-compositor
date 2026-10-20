@@ -71,7 +71,7 @@ export function usageLabel(value: UsageReceipt) {
   const multiplierText = typeof value.billing_multiplier === "number" && value.billing_multiplier > 0
     ? ` · 倍率 ${formatMultiplier(value.billing_multiplier)}`
     : "";
-  return `原始 ${raw} token${multiplierText} · 实扣 ${quota} ${value.billing_unit ?? "token"}${exact ? `（精确 ${exact}）` : ""} · 现金 ${cash} · ${value.billing_status}${value.reconciled ? "" : "（待对账）"}`;
+  return `原始 ${raw} 额度${multiplierText} · 实扣 ${quota} ${value.billing_unit ?? "额度"}${exact ? `（精确 ${exact}）` : ""} · 现金 ${cash} · ${value.billing_status}${value.reconciled ? "" : "（待对账）"}`;
 }
 
 export function aiTaskReceiptSummary(value: UsageReceipt): {
