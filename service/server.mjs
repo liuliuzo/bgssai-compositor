@@ -37,7 +37,8 @@ const DEFAULT_MODEL_CATALOG = [
     display_name: "Qwen Plus (CN)",
     provider: "alibaba",
     region: "cn",
-    capabilities: ["text", "copywriting", "layer_layout"],
+    hub_provider: "bgssai-tokenhub-cn",
+    capabilities: ["text", "copywriting", "layer_layout", "inpainting", "layer_generation"],
     max_tokens: 2048,
     is_default: true,
   },
@@ -48,33 +49,56 @@ const DEFAULT_MODEL_CATALOG = [
     display_name: "DeepSeek V3 (CN)",
     provider: "deepseek",
     region: "cn",
-    capabilities: ["text", "copywriting", "layer_layout"],
+    hub_provider: "bgssai-tokenhub-cn",
+    capabilities: ["text", "copywriting", "layer_layout", "inpainting", "layer_generation"],
     max_tokens: 2048,
     is_default: false,
   },
   {
-    id: "gpt-4o-mini",
-    model_id: "gpt-4o-mini",
-    name: "GPT-4o Mini",
-    display_name: "GPT-4o Mini (Global)",
-    provider: "openai",
-    region: "global",
-    capabilities: ["text", "copywriting", "layer_layout"],
+    id: "glm-4-plus",
+    model_id: "glm-4-plus",
+    name: "GLM-4 Plus",
+    display_name: "GLM-4 Plus (CN)",
+    provider: "zhipu",
+    region: "cn",
+    hub_provider: "bgssai-tokenhub-cn",
+    capabilities: ["text", "copywriting", "layer_layout", "inpainting", "layer_generation"],
     max_tokens: 2048,
     is_default: false,
   },
   {
-    id: "claude-3-5-sonnet",
-    model_id: "claude-3-5-sonnet",
-    name: "Claude 3.5 Sonnet",
-    display_name: "Claude 3.5 Sonnet (Global)",
-    provider: "anthropic",
-    region: "global",
-    capabilities: ["text", "copywriting", "layer_layout"],
+    id: "doubao-pro",
+    model_id: "doubao-pro",
+    name: "Doubao Pro",
+    display_name: "Doubao Pro (CN)",
+    provider: "volcengine",
+    region: "cn",
+    hub_provider: "bgssai-tokenhub-cn",
+    capabilities: ["text", "copywriting", "layer_layout", "inpainting", "layer_generation"],
     max_tokens: 2048,
     is_default: false,
   },
 ];
+
+const DISALLOWED_GLOBAL_PROVIDERS = new Set(["openai", "anthropic", "google", "xai"]);
+
+export function resolveTokenhubOrigin(region = "cn", config = {}) {
+  const normalizedRegion = String(region ?? "cn").trim().toLowerCase() || "cn";
+  if (normalizedRegion !== "cn") {
+    throw Object.assign(
+      new Error("仅允许使用中国大陆模型服务（bgssai-tokenhub-cn），拒绝非 cn 区域路由"),
+      { status: 400, code: "region_not_allowed" },
+    );
+  }
+  const candidate = config.hubCnOrigin ?? config.hubOrigins?.cn ?? config.hubOrigin ?? null;
+  if (typeof candidate === "string" && candidate.includes("api.tokenhub.bgssai.com")) {
+    throw Object.assign(
+      new Error("仅允许使用中国大陆模型服务（bgssai-tokenhub-cn），拒绝非 cn 区域路由"),
+      { status: 400, code: "region_not_allowed" },
+    );
+  }
+  return candidate;
+}
 
 const MCP_TOOLS = [
   {
@@ -268,30 +292,28 @@ export function createService(config, transport = fetch) {
   };
 
   const buildModelCatalog = () => {
-    const base = Array.isArray(config.models)
-      ? config.models.map((item) => {
-          const region = String(item.region ?? "cn");
-          return {
-            id: String(item.id ?? item.model_id),
-            model_id: String(item.model_id ?? item.id),
-            name: String(item.name ?? item.display_name ?? item.id),
-            display_name: String(item.display_name ?? item.name ?? item.id),
-            provider: String(item.provider ?? "bgssai"),
-            region,
-            hub_provider: region === "cn" ? "bgssai-tokenhub-cn" : "bgssai-tokenhub-global",
-            supported_multipliers: [0.5, 1.0, 1.5],
-            capabilities: Array.isArray(item.capabilities)
-              ? item.capabilities
-              : ["text", "copywriting", "layer_layout", "inpainting", "layer_generation"],
-            max_tokens: Number(item.max_tokens ?? 2048),
-            is_default: Boolean(item.is_default),
-          };
+    const rawList = Array.isArray(config.models)
+      ? config.models.filter((item) => {
+          const region = String(item.region ?? "cn").toLowerCase();
+          const provider = String(item.provider ?? "bgssai").toLowerCase();
+          return region === "cn" && !DISALLOWED_GLOBAL_PROVIDERS.has(provider);
         })
-      : DEFAULT_MODEL_CATALOG.map((item) => ({
-          ...item,
-          hub_provider: item.region === "cn" ? "bgssai-tokenhub-cn" : "bgssai-tokenhub-global",
-          supported_multipliers: [0.5, 1.0, 1.5],
-        }));
+      : DEFAULT_MODEL_CATALOG;
+    const base = rawList.map((item) => ({
+      id: String(item.id ?? item.model_id),
+      model_id: String(item.model_id ?? item.id),
+      name: String(item.name ?? item.display_name ?? item.id),
+      display_name: String(item.display_name ?? item.name ?? item.id),
+      provider: String(item.provider ?? "bgssai"),
+      region: "cn",
+      hub_provider: "bgssai-tokenhub-cn",
+      supported_multipliers: [0.5, 1.0, 1.5],
+      capabilities: Array.isArray(item.capabilities)
+        ? item.capabilities
+        : ["text", "copywriting", "layer_layout", "inpainting", "layer_generation"],
+      max_tokens: Number(item.max_tokens ?? 2048),
+      is_default: Boolean(item.is_default),
+    }));
     if (
       config.hubModel &&
       !base.some(
@@ -332,16 +354,17 @@ export function createService(config, transport = fetch) {
     const candidates = [
       config.hubOrigin,
       config.hubCnOrigin,
-      config.hubGlobalOrigin,
+      config.hubOrigins?.cn,
       ...(Array.isArray(config.allowedHubOrigins)
         ? config.allowedHubOrigins
         : []),
-      ...(config.hubOrigins && typeof config.hubOrigins === "object"
-        ? Object.values(config.hubOrigins)
-        : []),
     ];
     for (const candidate of candidates) {
-      if (typeof candidate === "string" && candidate.trim()) {
+      if (
+        typeof candidate === "string" &&
+        candidate.trim() &&
+        !candidate.includes("api.tokenhub.bgssai.com")
+      ) {
         allowed.add(httpsOrigin(candidate.trim()));
       }
     }
@@ -1718,13 +1741,15 @@ export function createService(config, transport = fetch) {
       }
       if (route === "GET /api/ai/models") {
         if (!session.grants.ai) throw fail(403, "AI 未授权");
+        const requestedRegion = url.searchParams.get("region");
+        if (requestedRegion && requestedRegion.trim().toLowerCase() !== "cn") {
+          resolveTokenhubOrigin(requestedRegion, config);
+        }
         const { models, defaultModel } = buildModelCatalog();
         const allowed = resolveAllowedHubOrigins();
         const catalogs = new Map();
         const enriched = await Promise.all(models.map(async (model) => {
-          const configured = (model.region === "cn"
-            ? config.hubCnOrigin ?? config.hubOrigins?.cn
-            : config.hubGlobalOrigin ?? config.hubOrigins?.global) ?? config.hubOrigin;
+          const configured = resolveTokenhubOrigin(model.region, config);
           const hub = configured ? httpsOrigin(configured) : null;
           if (hub && config.hubKey && allowed.has(hub) && !catalogs.has(hub)) {
             catalogs.set(hub, (async () => {
@@ -2242,6 +2267,9 @@ export function createService(config, transport = fetch) {
       if (route === "POST /api/ai/text") {
         if (!session.grants.ai) throw fail(403, "AI 未授权");
         const data = await body(req);
+        if (data.region !== undefined) {
+          resolveTokenhubOrigin(data.region, config);
+        }
         const prompt = data.prompt;
         if (
           typeof prompt !== "string" ||
@@ -2264,6 +2292,9 @@ export function createService(config, transport = fetch) {
         const explicitOrigin =
           data.hub_origin ?? data.target_hub_origin ?? data.endpoint ?? null;
         if (explicitOrigin !== null && explicitOrigin !== undefined) {
+          if (String(explicitOrigin).includes("api.tokenhub.bgssai.com")) {
+            resolveTokenhubOrigin("global", config);
+          }
           let normalizedExplicit;
           try {
             normalizedExplicit = httpsOrigin(String(explicitOrigin));
@@ -2274,11 +2305,7 @@ export function createService(config, transport = fetch) {
             throw fail(403, "AI 模型服务路由地址未受信任");
           }
         }
-        const regionalOrigin =
-          (selectedModel.region === "cn"
-            ? config.hubCnOrigin ?? config.hubOrigins?.cn
-            : config.hubGlobalOrigin ?? config.hubOrigins?.global) ??
-          config.hubOrigin;
+        const regionalOrigin = resolveTokenhubOrigin(selectedModel.region, config);
         if (!regionalOrigin || !config.hubKey)
           throw fail(503, "AI 模型服务尚未配置");
         const targetOrigin = httpsOrigin(regionalOrigin);
@@ -2338,6 +2365,9 @@ export function createService(config, transport = fetch) {
       if (route === "POST /api/ai/image-edit") {
         if (!session.grants.ai) throw fail(403, "AI 未授权");
         const data = await body(req);
+        if (data.region !== undefined) {
+          resolveTokenhubOrigin(data.region, config);
+        }
         const prompt = data.prompt;
         const image = data.image ?? data.input_image;
         if (typeof prompt !== "string" || !prompt.trim() || prompt.length > 4000) {
@@ -2356,10 +2386,7 @@ export function createService(config, transport = fetch) {
         );
         if (!selectedModel) throw fail(400, "所选 AI 模型不在受控模型目录中");
         const allowedOrigins = resolveAllowedHubOrigins();
-        const regionalOrigin =
-          (selectedModel.region === "cn"
-            ? config.hubCnOrigin ?? config.hubOrigins?.cn
-            : config.hubGlobalOrigin ?? config.hubOrigins?.global) ?? config.hubOrigin;
+        const regionalOrigin = resolveTokenhubOrigin(selectedModel.region, config);
         if (!regionalOrigin || !config.hubKey) throw fail(503, "AI 模型服务尚未配置");
         const targetOrigin = httpsOrigin(regionalOrigin);
         if (!allowedOrigins.has(targetOrigin)) {
@@ -2466,7 +2493,7 @@ export function createService(config, transport = fetch) {
           model: selectedModel.model_id,
           model_id: selectedModel.model_id,
           region: selectedModel.region,
-          hub_provider: selectedModel.region === "cn" ? "bgssai-tokenhub-cn" : "bgssai-tokenhub-global",
+          hub_provider: "bgssai-tokenhub-cn",
           product_code: PRODUCT_CODE,
           request_id,
           billing: billingResult,
@@ -2484,6 +2511,7 @@ export function createService(config, transport = fetch) {
         );
         send(error.status ?? 400, {
           error: safeError,
+          ...(error.code ? { code: error.code } : {}),
           request_id: requestId,
         });
       } else res.end();

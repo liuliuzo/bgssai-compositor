@@ -299,12 +299,25 @@ function setupIPC() {
     if (!["document", "image"].includes(kind))
       throw new Error("无效的文件类型");
     const filters = [
-      { name: "图像", extensions: ["png", "jpg", "jpeg", "webp", "bmp"] },
+      {
+        name: "图像",
+        extensions: ["psd", "png", "jpg", "jpeg", "webp", "gif", "bmp", "svg"],
+      },
     ];
     if (kind === "document")
       filters.unshift({
-        name: "Compositor 项目或图像",
-        extensions: ["bgcomp", "png", "jpg", "jpeg", "webp", "bmp"],
+        name: "Compositor 项目、PSD 或图像",
+        extensions: [
+          "bgcomp",
+          "psd",
+          "png",
+          "jpg",
+          "jpeg",
+          "webp",
+          "gif",
+          "bmp",
+          "svg",
+        ],
       });
     const result = await dialog.showOpenDialog(window, {
       title: kind === "image" ? "导入图像为图层" : "打开项目或图像",
@@ -329,14 +342,17 @@ function setupIPC() {
       };
     }
     const mime = {
+      ".psd": "image/vnd.adobe.photoshop",
       ".png": "image/png",
       ".jpg": "image/jpeg",
       ".jpeg": "image/jpeg",
       ".webp": "image/webp",
+      ".gif": "image/gif",
       ".bmp": "image/bmp",
+      ".svg": "image/svg+xml",
     }[ext];
     if (!mime)
-      throw new Error("首版支持 PNG、JPEG、WebP、BMP 和 .bgcomp 项目。");
+      throw new Error("首版支持 PSD、PNG、JPEG、WebP、GIF、BMP、SVG 和 .bgcomp 项目。");
     return {
       name: path.basename(selected),
       kind: "image",

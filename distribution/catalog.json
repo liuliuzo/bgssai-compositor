@@ -1,8 +1,10 @@
 {
   "id": "bgssai-compositor",
-  "repository": "liuliuzo/bgssai-compossitor",
+  "repository": "liuliuzo/bgssai-compositor",
   "version": "0.2.0",
-  "releasePage": "https://github.com/liuliuzo/bgssai-compossitor/releases",
+  "ecosystemUrl": "https://www.bgssai.com",
+  "downloadUrl": "https://www.bgssai.com/downloads/bgssai-compositor",
+  "releasePage": "https://github.com/liuliuzo/bgssai-compositor/releases",
   "manifestFile": "release-manifest.json",
   "sourceBranch": "develop",
   "platforms": {
