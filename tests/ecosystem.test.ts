@@ -347,6 +347,22 @@ test("Password auth, AI model selection & hub allowlist, Support bridge HMAC ide
     const catalog = await (await req("/api/ai/models", "GET", undefined, userAToken)).json();
     assert.equal(catalog.product_code, "compositor");
     assert.ok(catalog.models.some((m: any) => m.model_id === "deepseek-v3"));
+    assert.ok(catalog.models.every((m: any) => m.region === "cn" && m.hub_provider === "bgssai-tokenhub-cn"));
+    assert.ok(catalog.models.every((m: any) => !["openai", "anthropic", "google", "xai"].includes(m.provider)));
+
+    const badRegionModels = await req("/api/ai/models?region=global", "GET", undefined, userAToken);
+    assert.equal(badRegionModels.status, 400);
+    const badRegionModelsBody = await badRegionModels.json();
+    assert.equal(badRegionModelsBody.code, "region_not_allowed");
+
+    const badRegionAi = await req(
+      "/api/ai/text",
+      "POST",
+      { prompt: "生成海报标题", model: "deepseek-v3", region: "global" },
+      userAToken,
+    );
+    assert.equal(badRegionAi.status, 400);
+    assert.equal((await badRegionAi.json()).code, "region_not_allowed");
 
     const aiOk = await (
       await req(

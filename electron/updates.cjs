@@ -22,8 +22,13 @@ function assetURL(value) {
     url.password ||
     url.search ||
     url.hash ||
-    !url.href.startsWith(
-      "https://github.com/liuliuzo/bgssai-compossitor/releases/download/",
+    !(
+      url.href.startsWith(
+        "https://github.com/liuliuzo/bgssai-compositor/releases/download/",
+      ) ||
+      url.href.startsWith(
+        "https://github.com/liuliuzo/bgssai-compossitor/releases/download/",
+      )
     )
   )
     throw new Error("更新包必须来自登记的仓库 Release");
@@ -44,9 +49,12 @@ function validateArtifact(artifact, releaseVersion) {
   const url = assetURL(artifact.url);
   if (artifact.platform === "win32" && !artifact.file.endsWith("-setup.exe"))
     throw new Error("Windows 更新和回滚必须使用安装版");
+  const pathname = new URL(url).pathname;
   if (
-    new URL(url).pathname !==
-    `/liuliuzo/bgssai-compossitor/releases/download/v${releaseVersion}/${artifact.file}`
+    pathname !==
+      `/liuliuzo/bgssai-compositor/releases/download/v${releaseVersion}/${artifact.file}` &&
+    pathname !==
+      `/liuliuzo/bgssai-compossitor/releases/download/v${releaseVersion}/${artifact.file}`
   )
     throw new Error("更新包版本与路径不一致");
 }

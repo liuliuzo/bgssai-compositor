@@ -1,0 +1,9 @@
+{
+  "appId": "com.bgssai.compositor",
+  "productCode": "compositor",
+  "ecosystemUrl": "https://www.bgssai.com",
+  "downloadUrl": "https://www.bgssai.com/downloads/bgssai-compositor",
+  "tokenhubRegion": "cn",
+  "tokenhubProvider": "bgssai-tokenhub-cn",
+  "tokenhubUrl": "https://cn.tokenhub.bgssai.com"
+}
