@@ -1,0 +1,127 @@
+{
+  "schema_version": "1.0",
+  "repo": "bgssai-compositor",
+  "entrypoints": {
+    "index": "docs/demo-static/index.html",
+    "page_flow": "docs/demo-static/PAGE-FLOW.html"
+  },
+  "prototype_bundle_digest": "d745207797e4a6278620f3414689fcb16c53887f82f76f3cd49751cb33bcbbc0",
+  "code_contract_digest": "5b06449c7487d6fef65cdf43ba53ed4ccf006d4ff14ad885addba9ed29de1e25",
+  "api_endpoints": [
+    "/api/auth/oauth",
+    "/api/bot",
+    "/api/mcp"
+  ],
+  "tracked_code_files": [
+    {
+      "path": ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
+      "sha256": "69cc14a14b6dd13253a20aa453b7041bec3a05b179c14a71cc242ac4f041811e"
+    },
+    {
+      "path": ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
+      "sha256": "8960c027a0bf84ea5b7aeecf16ef0344df29e5690e069b0815624a5ad05d258f"
+    },
+    {
+      "path": ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/src/App.tsx",
+      "sha256": "1ff60c053283c4874137c5bebfb9d2ff58e401ed9424d195b75439108c238657"
+    },
+    {
+      "path": ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
+      "sha256": "69cc14a14b6dd13253a20aa453b7041bec3a05b179c14a71cc242ac4f041811e"
+    },
+    {
+      "path": ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
+      "sha256": "8960c027a0bf84ea5b7aeecf16ef0344df29e5690e069b0815624a5ad05d258f"
+    },
+    {
+      "path": ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/src/App.tsx",
+      "sha256": "1ff60c053283c4874137c5bebfb9d2ff58e401ed9424d195b75439108c238657"
+    },
+    {
+      "path": "electron/main.cjs",
+      "sha256": "69cc14a14b6dd13253a20aa453b7041bec3a05b179c14a71cc242ac4f041811e"
+    },
+    {
+      "path": "service/server.mjs",
+      "sha256": "8960c027a0bf84ea5b7aeecf16ef0344df29e5690e069b0815624a5ad05d258f"
+    },
+    {
+      "path": "src/App.tsx",
+      "sha256": "1ff60c053283c4874137c5bebfb9d2ff58e401ed9424d195b75439108c238657"
+    }
+  ],
+  "pages": [
+    {
+      "path": "docs/demo-static/PAGE-FLOW.html",
+      "sha256": "dd44c5d96029d8832f8d50012bd011ac4a3dee0e9dec6bf3ced39c1cb3565441",
+      "surface": "flow",
+      "bound_code_files": [
+        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
+        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
+        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/src/App.tsx",
+        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
+        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
+        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/src/App.tsx"
+      ],
+      "bound_endpoints": [
+        "/api/auth/oauth",
+        "/api/bot",
+        "/api/mcp"
+      ]
+    },
+    {
+      "path": "docs/demo-static/index.html",
+      "sha256": "b6062ff750dc5e3161a38101a6028f847d973a404fcdbcfff45eda3e1b0d6da9",
+      "surface": "index",
+      "bound_code_files": [
+        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
+        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
+        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/src/App.tsx",
+        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
+        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
+        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/src/App.tsx"
+      ],
+      "bound_endpoints": [
+        "/api/auth/oauth",
+        "/api/bot",
+        "/api/mcp"
+      ]
+    },
+    {
+      "path": "docs/demo-static/model-price-receipts.html",
+      "sha256": "49cba7bcf298f5735bfb16ae1736abb3ea169263f9ee0e075a1e94b9a99eb7c8",
+      "surface": "user",
+      "bound_code_files": [
+        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
+        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
+        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/src/App.tsx",
+        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
+        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
+        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/src/App.tsx"
+      ],
+      "bound_endpoints": [
+        "/api/auth/oauth",
+        "/api/bot",
+        "/api/mcp"
+      ]
+    },
+    {
+      "path": "docs/demo-static/recovery-startup.html",
+      "sha256": "8db94fb8a958743fda3c9a955a077af875886bc20a2f851415ceb1af918715b4",
+      "surface": "user",
+      "bound_code_files": [
+        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
+        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
+        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/src/App.tsx",
+        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
+        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
+        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/src/App.tsx"
+      ],
+      "bound_endpoints": [
+        "/api/auth/oauth",
+        "/api/bot",
+        "/api/mcp"
+      ]
+    }
+  ]
+}
