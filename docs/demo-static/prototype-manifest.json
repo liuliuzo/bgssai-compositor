@@ -5,8 +5,8 @@
     "index": "docs/demo-static/index.html",
     "page_flow": "docs/demo-static/PAGE-FLOW.html"
   },
-  "prototype_bundle_digest": "d745207797e4a6278620f3414689fcb16c53887f82f76f3cd49751cb33bcbbc0",
-  "code_contract_digest": "5b06449c7487d6fef65cdf43ba53ed4ccf006d4ff14ad885addba9ed29de1e25",
+  "prototype_bundle_digest": "2bceb54e2dcad5aa5ea98ee59413c58d3fdc6c71167ddd905099906b6a152d8a",
+  "code_contract_digest": "9ec257498f5938e86609e018c90fcae0bc72f56f82867f2d70114d9478e13ca0",
   "api_endpoints": [
     "/api/auth/oauth",
     "/api/bot",
@@ -47,7 +47,7 @@
     },
     {
       "path": "src/App.tsx",
-      "sha256": "1ff60c053283c4874137c5bebfb9d2ff58e401ed9424d195b75439108c238657"
+      "sha256": "9e3f0ffe37c0ed9561c0be10d2890d2e05755d6b9f9d6988c166d628ddde9b34"
     }
   ],
   "pages": [
@@ -89,7 +89,7 @@
     },
     {
       "path": "docs/demo-static/model-price-receipts.html",
-      "sha256": "49cba7bcf298f5735bfb16ae1736abb3ea169263f9ee0e075a1e94b9a99eb7c8",
+      "sha256": "8f7ff9c42ae918cd509983230d056886b479b4deb2de27b3a0859e3acced2780",
       "surface": "user",
       "bound_code_files": [
         ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
@@ -107,7 +107,7 @@
     },
     {
       "path": "docs/demo-static/recovery-startup.html",
-      "sha256": "8db94fb8a958743fda3c9a955a077af875886bc20a2f851415ceb1af918715b4",
+      "sha256": "ce8b16d74acc5c15cb21e695f2022a85bf1fd20e7193286be3e17a3f32d118ad",
       "surface": "user",
       "bound_code_files": [
         ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
