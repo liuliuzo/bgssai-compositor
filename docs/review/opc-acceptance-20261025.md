@@ -1,5 +1,43 @@
 # Compositor 2026-10-19 需求与审计项执行记录
 
+## PR #29 合入 develop 后的复核（2026-10-25）
+
+本轮只处理既有 PR #29 与 develop 的冲突。合并前分支为 `b60b1c284b48531465d7c9edec57c48dd01c1326`，合入的 develop 为 `784a294211bd685a614a59b269896184d9dbc9c5`，包含 Muse 的 `1abe8ee69dfab2f3a2af82848d522ee63e379399`（TODO-20261024-16，经 PR #30 合入）。本轮复跑的产品实现与原 PR #29 相同，只合入 develop 的工作流测试修正与验收证据；合并提交 SHA 见 PR。
+
+开始时仅 `.task-tmp/` 未跟踪，没有未提交的受跟踪文件。原有两次提交和有效实现全部保留，没有丢弃上轮工作；临时脚本、日志和 PR 说明文件不提交。依赖继续复用现有 node_modules 目录联接。
+
+### 冲突取舍
+
+| 文件/范围 | 最终处理 |
+| --- | --- |
+| `src/psd-subset.ts` | 无需人工选边；双方的 `RawLayer.right` 修复相同。保留本分支更完整的图层顺序、蒙版实际像素、ZIP 文字边界、工程历史与字体保护实现。 |
+| `tests/release-workflow.test.ts` | 完整保留 develop 对 `page-contract.yml` 的断言修正，文件与 develop 相同。该修正消除首次验收的工作流列表失败。 |
+| PSD 与 Electron 用例 | develop 的 9 个 PSD 用例全部保留；原 16 位测试扩展为 16/32 位，并保留 ZIP 文字/图层组测试及完整 Electron 编辑、回读、导出、恢复测试。本轮未改产品源码、界面文案或其它测试断言。 |
+| `docs/test/TC-opc-product-20261019.md` | 以覆盖实际编辑闭环的 Electron 证据为主，合并 Muse 的单元证据、签名包与五端真机限制及原始执行记录。双方均为 101 正反向通过、102 正反向阻塞。Muse 的历史执行数量和回环监听限制单独标明，不套用到本轮环境。 |
+| `docs/test/PROGRESS.md` | 保留一致的统计：目录 82 条，65 待测、2 通过、15 阻塞；保留详细执行记录入口，补充签名包和真机阻塞条件。 |
+| `docs/test/REQUIREMENT-COVERAGE.md`、`docs/test/TRACEABILITY-20261019.md` | 合并单元与 Electron 证据，保留声明子集范围和五端签名包、设备阻塞条件。 |
+| `docs/test/functional-manifest-20261019.json` | 保留本分支与用例一致的 `progress` 和 `suite_counts`：0 待测、2 通过、2 阻塞；develop 的两处汇总仍残留 4 条待测，需同步纠正。保留 `design_only: false`，因为双方均已有实际执行记录。 |
+
+101 与 AUD-01 在声明子集内通过；102 与 AUD-02 仍缺签名包、五端制品/设备和原生移动界面的验收证据。TODO-20261021-07 保持已完成复核，TODO-20261024-16 的有效修复和证据已并入，不重复实现。
+
+### 合并后验证
+
+测试仍使用工作目录内 `.task-tmp/` 作为 TEMP / TMP，服务测试只用回环 HTTP 与 stub。`npm test` 的 48 项全部通过，包括 Muse 环境曾因回环监听受限未执行的服务测试；`npm run build` 的共享校验器、TypeScript 与 Vite 构建通过。
+
+| 命令 | 本轮合并后结果 |
+| --- | --- |
+| `npm test` | 48/48 通过；PSD 10 项（含 develop 原有 9 项覆盖）、工作流 2 项全部通过。 |
+| `npm run build` | 通过。 |
+| `npm run test:e2e` | 16/17 通过，耗时 5.8 分钟；唯一失败为原有帮助文案断言，见下文。 |
+| 指定原型检查器：`--sync`、无 `--sync`、`--staged` | 均 PASS；通过仓内范围包装器执行，完整形式见下方“原型闸门与范围”。 |
+| TC/manifest/PROGRESS 一致性、文档本地链接、LF、冲突标记、`git diff --check` | 通过。 |
+
+唯一保留失败：`tests/desktop/editor.spec.ts:347`，`Windows desktop bridge is isolated and demo renders as editable layers` 仍断言旧文字“PSD 导入为尽力而为”，实际界面为已有的“PSD 可编辑子集仅为 8 位 RGB……”说明。该失败在首次验收已记录；本轮没有修改对应界面或断言。完整回归中的 PSD 正反向、选区/撤销/重做、缺字体保护、损坏解码/历史保护及崩溃恢复六项均通过，不需要再次重复运行同一组测试。
+
+指定原型检查器经本仓范围包装器先 `--sync`、再无 `--sync` 检查均 PASS（4 个 HTML、3 个代码契约文件、3 个接口）；合并未改变页面契约，清单无额外内容差异。TC、manifest、PROGRESS、文档本地链接、LF 和未解决冲突检查通过；2026-10-17 文档与用例结果未改动。范围包装器只排除嵌套 worktree、security 和临时目录，未修改共享检查器。
+
+## 首次验收记录（保留历史结果）
+
 执行日期：2026-10-25（UTC）。环境：Windows 10.0.26100 x64、Node.js 24.19.0、Electron 44.7.0。执行者：codex。应用版本：0.2.0（源码运行，非安装验收）。最终定向回归结束：2026-10-25 06:39:46 UTC。
 
 同步基线：`c47c42b1aeed8d9ec45b69048d172484ac624cd4`（origin/develop）。被测实现提交：`100ad39601b692854ef2bcf85884dca3914f46a4`。后续提交只更新本记录及验收入口；PR 最终 SHA 见 GitHub。

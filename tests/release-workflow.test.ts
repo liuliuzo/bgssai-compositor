@@ -98,7 +98,7 @@ test("job-level env cannot read runner, including the expressions GitHub rejecte
 
 test("checked-in workflows keep runner off job env and keep signed release fail-closed", async () => {
   const names = (await readdir(workflowsDir)).filter((name) => name.endsWith(".yml"));
-  assert.deepEqual(names.sort(), ["platforms.yml", "release.yml", "windows.yml"]);
+  assert.deepEqual(names.sort(), ["page-contract.yml", "platforms.yml", "release.yml", "windows.yml"]);
   for (const name of names) {
     const text = await readFile(new URL(name, workflowsDir), "utf8");
     for (const [job, lines] of jobLevelEnv(text)) {
