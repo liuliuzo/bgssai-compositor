@@ -124,6 +124,7 @@ interface RawLayer {
   top: number;
   left: number;
   bottom: number;
+  right: number;
   opacity: number;
   clipping: number;
   flags: number;

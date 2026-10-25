@@ -30,28 +30,28 @@
       "id": "TC-COMPOSITOR-PRODUCT-101-P",
       "requirement": "REQ-COMPOSITOR-PRODUCT-101",
       "file": "TC-opc-product-20261019.md",
-      "status": "待测",
+      "status": "通过",
       "kind": "P"
     },
     {
       "id": "TC-COMPOSITOR-PRODUCT-101-N",
       "requirement": "REQ-COMPOSITOR-PRODUCT-101",
       "file": "TC-opc-product-20261019.md",
-      "status": "待测",
+      "status": "通过",
       "kind": "N"
     },
     {
       "id": "TC-COMPOSITOR-PRODUCT-102-P",
       "requirement": "REQ-COMPOSITOR-PRODUCT-102",
       "file": "TC-opc-product-20261019.md",
-      "status": "待测",
+      "status": "阻塞",
       "kind": "P"
     },
     {
       "id": "TC-COMPOSITOR-PRODUCT-102-N",
       "requirement": "REQ-COMPOSITOR-PRODUCT-102",
       "file": "TC-opc-product-20261019.md",
-      "status": "待测",
+      "status": "阻塞",
       "kind": "N"
     }
   ],
