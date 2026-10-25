@@ -4,5 +4,5 @@
 
 | 需求ID | 能力 | 用例文件 | 用例ID | 执行状态 |
 | --- | --- | --- | --- | --- |
-| REQ-COMPOSITOR-PRODUCT-101 | PSD 可编辑与转换损失 | [TC-opc-product-20261019.md](TC-opc-product-20261019.md) | TC-COMPOSITOR-PRODUCT-101-P, TC-COMPOSITOR-PRODUCT-101-N | 待测 |
-| REQ-COMPOSITOR-PRODUCT-102 | 五端编辑与导出一致性 | [TC-opc-product-20261019.md](TC-opc-product-20261019.md) | TC-COMPOSITOR-PRODUCT-102-P, TC-COMPOSITOR-PRODUCT-102-N | 待测 |
+| REQ-COMPOSITOR-PRODUCT-101 | PSD 可编辑与转换损失 | [TC-opc-product-20261019.md](TC-opc-product-20261019.md) | TC-COMPOSITOR-PRODUCT-101-P, TC-COMPOSITOR-PRODUCT-101-N | 通过（声明子集的 Electron 实际运行） |
+| REQ-COMPOSITOR-PRODUCT-102 | 五端编辑与导出一致性 | [TC-opc-product-20261019.md](TC-opc-product-20261019.md) | TC-COMPOSITOR-PRODUCT-102-P, TC-COMPOSITOR-PRODUCT-102-N | 阻塞（共享引擎通过，缺五端实际制品/设备） |
