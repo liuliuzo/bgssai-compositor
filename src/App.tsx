@@ -71,6 +71,7 @@ import type { OpenedFile } from "./desktop";
 import { recovery, type Recovery } from "./recovery";
 import {
   native,
+  openExternal,
   platformName,
   saveNative,
   request,
@@ -1537,6 +1538,17 @@ export function App() {
           </Button>
         </div>
         <div className="header-end">
+          <Button
+            title="下载 Bot"
+            onClick={() =>
+              void openExternal("https://www.bgssai.com/download/bot/").catch(
+                (e) =>
+                  message(formatServiceError((e as Error).message), true),
+              )
+            }
+          >
+            下载 Bot
+          </Button>
           <Button title="账户与连接" onClick={() => action("connections")}>
             连接
           </Button>
