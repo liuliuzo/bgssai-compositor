@@ -10,13 +10,30 @@ import { adjustPixels, blurPixels } from "../src/filters.ts";
 import { defaults } from "../src/project.ts";
 import { imageDimensions } from "../src/image-header.ts";
 const require = createRequire(import.meta.url);
-const { RecoveryStore } = require("../electron/storage.cjs");
+const { RecoveryStore, atomicWrite } = require("../electron/storage.cjs");
 const { verifyManifest, download } = require("../electron/updates.cjs");
 const { installWithRollback } = require("../electron/update-runner.cjs");
 const sample = await fs.readFile(
   new URL("../fixtures/shared.bgcomp", import.meta.url),
   "utf8",
 );
+
+test("disk-full failure preserves the previous project and reports an unsuccessful save", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "compositor-test-"));
+  const target = path.join(directory, "saved.bgcomp");
+  try {
+    await fs.writeFile(target, sample);
+    t.mock.method(fs, "open", async () => { throw Object.assign(new Error("disk full"), { code: "ENOSPC" }); });
+    await assert.rejects(atomicWrite(target, "new contents"), /磁盘空间不足/);
+    assert.equal(await fs.readFile(target, "utf8"), sample);
+    assert.deepEqual(await fs.readdir(directory), ["saved.bgcomp"]);
+  } finally {
+    t.mock.restoreAll();
+    assert.equal(path.dirname(path.resolve(directory)), path.resolve(os.tmpdir()));
+    assert.ok(path.basename(directory).startsWith("compositor-test-"));
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});
 test("software filters preserve alpha, remove saturation, and blur transparent edges without color halos", () => {
   const pixels = new Uint8ClampedArray([255, 0, 0, 128]);
   adjustPixels(pixels, { ...defaults(), saturation: -100 });

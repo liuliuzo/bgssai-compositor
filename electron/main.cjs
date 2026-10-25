@@ -15,6 +15,7 @@ const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { randomUUID } = require("node:crypto");
 const { atomicWrite, RecoveryStore } = require("./storage.cjs");
+const { parseProject } = require("./project-validator.cjs");
 const { Updater } = require("./updates.cjs");
 const { spawn } = require("node:child_process");
 const os = require("node:os");
@@ -369,14 +370,11 @@ function setupIPC() {
   handle("file:save-project", async ({ name, content, saveAs }) => {
     if (typeof content !== "string" || Buffer.byteLength(content) > MAX_BYTES)
       throw new Error("项目过大（上限 128 MB）");
-    let parsed;
     try {
-      parsed = JSON.parse(content);
+      parseProject(content);
     } catch {
       throw new Error("工程数据损坏，未保存为成功。");
     }
-    if (!parsed || parsed.format !== "bgssai-compositor" || parsed.version !== 1)
-      throw new Error("工程数据损坏，未保存为成功。");
     let target = projectPath;
     if (!target || saveAs) {
       const result = await dialog.showSaveDialog(window, {

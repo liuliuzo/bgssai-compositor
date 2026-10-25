@@ -20,6 +20,7 @@ import {
   type ProjectData,
   type SelectionKind,
   type SelectionMode,
+  type SelectionData,
   type ShapeContent,
   type ShapeKind,
   type TextAlign,
@@ -101,6 +102,7 @@ function ctx(canvas: HTMLCanvasElement) {
   if (!context) throw new Error("无法初始化图像引擎。");
   return context;
 }
+const SYSTEM_FONTS = new Set(["sans-serif", "serif", "monospace"]);
 function layerFromCanvas(canvas: HTMLCanvasElement, name: string): Layer {
   return {
     id: crypto.randomUUID(),
@@ -235,14 +237,17 @@ export class Editor {
   historyIndex = -1;
   private savedJSON = "";
   private pending = false;
+  private recoveryCache?: { history: Snapshot[]; index: number; json: string };
   busy = false;
   memoryBudget = DEFAULT_MEMORY_BYTES;
   /** Baseline revision captured when an AI preview was requested. */
   aiBaselineRevision: number | null = null;
   get snapshot() {
-    return this.pending
-      ? null
-      : (this.history[this.historyIndex]?.json ?? null);
+    const current = this.history[this.historyIndex]?.json;
+    if (this.pending || !current) return null;
+    if (this.recoveryCache?.history !== this.history || this.recoveryCache.index !== this.historyIndex)
+      this.recoveryCache = { history: this.history, index: this.historyIndex, json: this.withHistory(current) };
+    return this.recoveryCache.json;
   }
   get historyBytes() {
     return this.history.reduce(
@@ -259,7 +264,7 @@ export class Editor {
         total += mask.width * mask.height;
       }
       return total;
-    }, 0);
+    }, data.selection?.image ? data.width * data.height : 0);
     const softwareFilters = !("filter" in ctx(this.layers[0]?.canvas ?? makeCanvas(1, 1)));
     const filterPixels = softwareFilters
       ? Math.max(
@@ -283,7 +288,7 @@ export class Editor {
         pixels + this.pixelBudget + filterPixels,
         data.width * data.height + this.width * this.height,
         json.length * 2,
-        this.historyBytes,
+        this.historyBytes + (data.history?.entries.reduce((sum, entry) => sum + entry.json.length * 2, 0) ?? 0),
       ),
       this.memoryBudget,
     );
@@ -305,7 +310,7 @@ export class Editor {
       estimateMemory(
         this.pixelBudget + width * height,
         this.width * this.height,
-        (this.snapshot?.length ?? 0) * 2,
+        (this.history[this.historyIndex]?.json.length ?? 0) * 2,
         this.historyBytes,
       ),
       this.memoryBudget,
@@ -387,12 +392,29 @@ export class Editor {
     }
     return data;
   }
-  serialize(): string {
+  private withHistory(json: string): string {
+    if (this.historyIndex < 0) return json;
+    // A single oversized current snapshot has no undo/redo branch to preserve.
+    // Keep that project saveable without emitting an invalid history envelope.
+    if (this.history.length === 1 && json.length * 2 > HISTORY_BYTES) return json;
+    const data = JSON.parse(json) as ProjectData;
+    data.history = {
+      index: this.historyIndex,
+      entries: this.history.map((entry, index) => index === this.historyIndex
+        ? { ...entry, json, selectedId: this.selectedId }
+        : entry),
+    };
+    const result = JSON.stringify(data);
+    if (new TextEncoder().encode(result).byteLength > MAX_PROJECT_BYTES)
+      throw new Error("项目及历史超过 128 MB，请减少图层后保存。");
+    return result;
+  }
+  serialize(includeHistory = false): string {
     checkMemory(
       estimateMemory(
         this.pixelBudget,
         this.width * this.height,
-        (this.snapshot?.length ?? 0) * 2,
+        (this.history[this.historyIndex]?.json.length ?? 0) * 2,
         this.historyBytes,
       ),
       this.memoryBudget,
@@ -405,10 +427,14 @@ export class Editor {
       height: this.height,
       layers: this.layers.map((layer) => this.serializeLayer(layer)),
     };
+    if (this.selection) {
+      const { mask, ...selection } = this.selection;
+      data.selection = { ...selection, ...(mask ? { image: mask.toDataURL("image/png") } : {}) };
+    }
     const json = JSON.stringify(data);
     if (new TextEncoder().encode(json).byteLength > MAX_PROJECT_BYTES)
       throw new Error("项目超过 128 MB，请减少图层后保存。");
-    return json;
+    return includeHistory ? this.withHistory(json) : json;
   }
   commit(label: string) {
     const json = this.serialize();
@@ -434,7 +460,9 @@ export class Editor {
     this.notify();
   }
   markSaved(json: string) {
-    this.savedJSON = json;
+    parseProject(json);
+    // Match the in-memory snapshot's field order after validating the written file.
+    this.savedJSON = this.serialize();
     this.notify();
   }
   private resetHistory(label: string, saved: boolean) {
@@ -477,6 +505,12 @@ export class Editor {
     const { image, mask, ...rest } = layer;
     const canvas = await decode(image);
     const result: Layer = { ...rest, canvas };
+    if (result.text) {
+      result.text = { ...result.text };
+      const font = result.text.missingFont ?? result.text.font;
+      if (!this.fontAvailable(font)) result.text.missingFont = font;
+      else if (font === result.text.font) delete result.text.missingFont;
+    }
     if (mask) {
       result.mask = {
         canvas: await decode(mask.image),
@@ -487,19 +521,33 @@ export class Editor {
     }
     return result;
   }
+  private async decodeSelection(selection?: SelectionData): Promise<Selection | null> {
+    if (!selection) return null;
+    const { image, ...rest } = selection;
+    return { ...rest, ...(image ? { mask: await decode(image) } : {}) };
+  }
   async load(json: string, saved = true) {
     const data = parseProject(json);
     this.checkAdoption(data, json);
     const decoded: Layer[] = [];
     for (const layer of data.layers) decoded.push(await this.decodeLayer(layer));
+    const selection = await this.decodeSelection(data.selection);
     this.name = data.name;
     this.width = data.width;
     this.height = data.height;
     this.layers = decoded;
     this.selectedId = decoded[decoded.length - 1].id;
-    this.selection = null;
+    this.selection = selection;
     this.aiBaselineRevision = null;
-    this.resetHistory("打开项目", saved);
+    if (data.history) {
+      this.history = data.history.entries;
+      this.historyIndex = data.history.index;
+      this.selectedId = this.history[this.historyIndex].selectedId;
+      this.pending = false;
+      this.history[this.historyIndex] = { ...this.history[this.historyIndex], json: this.serialize() };
+      this.savedJSON = saved ? this.history[this.historyIndex].json : "";
+      this.notify();
+    } else this.resetHistory("打开项目", saved);
   }
   async undo() {
     if (this.canUndo) await this.restore(this.historyIndex - 1);
@@ -515,13 +563,14 @@ export class Editor {
       this.checkAdoption(data, this.history[index].json);
       const layers: Layer[] = [];
       for (const layer of data.layers) layers.push(await this.decodeLayer(layer));
+      const selection = await this.decodeSelection(data.selection);
       this.name = data.name;
       this.width = data.width;
       this.height = data.height;
       this.layers = layers;
       this.selectedId = this.history[index].selectedId;
       this.historyIndex = index;
-      this.selection = null;
+      this.selection = selection;
       this.pending = false;
     } finally {
       this.busy = false;
@@ -628,7 +677,7 @@ export class Editor {
               (this.selected.canvas.height + padding) *
               4,
           this.width * this.height,
-          (this.snapshot?.length ?? 0) * 2,
+          (this.history[this.historyIndex]?.json.length ?? 0) * 2,
           this.historyBytes,
         ),
         this.memoryBudget,
@@ -727,15 +776,11 @@ export class Editor {
       out.width,
       out.height,
     );
-    if (layer.mask.inverted) {
-      context.globalCompositeOperation = "difference";
-      context.fillStyle = "#fff";
-      context.fillRect(0, 0, out.width, out.height);
-      context.globalCompositeOperation = "source-over";
-    }
-    if (layer.mask.feather > 0) {
+    if (layer.mask.inverted || layer.mask.feather > 0) {
       const pixels = context.getImageData(0, 0, out.width, out.height);
-      featherMaskPixels(pixels.data, out.width, out.height, layer.mask.feather);
+      if (layer.mask.inverted)
+        for (let i = 3; i < pixels.data.length; i += 4) pixels.data[i] = 255 - pixels.data[i];
+      blurPixels(pixels.data, out.width, out.height, layer.mask.feather);
       context.putImageData(pixels, 0, 0);
     }
     return out;
@@ -777,7 +822,7 @@ export class Editor {
         estimateMemory(
           this.pixelBudget + width * height * 4,
           this.width * this.height,
-          (this.snapshot?.length ?? 0) * 2,
+          (this.history[this.historyIndex]?.json.length ?? 0) * 2,
           this.historyBytes,
         ),
         this.memoryBudget,
@@ -865,7 +910,7 @@ export class Editor {
       estimateMemory(
         this.pixelBudget + this.width * this.height,
         this.width * this.height,
-        (this.snapshot?.length ?? 0) * 2,
+        (this.history[this.historyIndex]?.json.length ?? 0) * 2,
         this.historyBytes,
       ),
       this.memoryBudget,
@@ -1080,16 +1125,22 @@ export class Editor {
     next.y = Math.max(0, next.y);
     next.width = Math.max(0, x2 - next.x);
     next.height = Math.max(0, y2 - next.y);
+    if (!next.width || !next.height) {
+      this.deselect();
+      return;
+    }
 
     if (this.selectionMode === "replace" || !this.selection) {
-      const mask = emptyMask(this.width, this.height);
-      const c = ctx(mask);
-      c.fillStyle = "#fff";
-      fillSelectionShape(c, next);
-      c.fill();
+      const mask = next.mask ?? emptyMask(this.width, this.height);
+      if (!next.mask) {
+        const c = ctx(mask);
+        c.fillStyle = "#fff";
+        fillSelectionShape(c, next);
+        c.fill();
+      }
       next.mask = mask;
       this.selection = next;
-      this.notify();
+      this.commit("更改选区");
       return;
     }
     const mask = this.ensureSelectionMask();
@@ -1111,7 +1162,13 @@ export class Editor {
         points: next.points,
       };
     }
-    this.notify();
+    this.commit("更改选区");
+  }
+
+  deselect() {
+    if (!this.selection) return;
+    this.selection = null;
+    this.commit("取消选区");
   }
 
   expandSelection(pixels: number) {
@@ -1147,7 +1204,7 @@ export class Editor {
     const bounds = selectionBounds(mask);
     if (!bounds) this.selection = null;
     else this.selection = { ...this.selection, ...bounds, mask };
-    this.notify();
+    this.commit("调整选区大小");
   }
 
   contractSelection(pixels: number) {
@@ -1161,7 +1218,7 @@ export class Editor {
     const data = c.getImageData(0, 0, mask.width, mask.height);
     featherMaskPixels(data.data, mask.width, mask.height, radius);
     c.putImageData(data, 0, 0);
-    this.notify();
+    this.commit("羽化选区");
   }
 
   /** Local patch-match style content-aware fill inside the selection. */
@@ -1374,7 +1431,7 @@ export class Editor {
   private textCanvas(text: TextContent, replacing?: Layer): HTMLCanvasElement {
     const measure = ctx(makeCanvas(1, 1));
     const fontName = text.font;
-    measure.font = `${text.bold ? "700" : "400"} ${text.size}px "${fontName}"`;
+    measure.font = `${text.bold ? "700" : "400"} ${text.size}px ${SYSTEM_FONTS.has(fontName) ? fontName : JSON.stringify(fontName)}`;
     const lines = text.value.split("\n");
     const padding = Math.ceil(text.size * 0.25);
     const width = Math.max(
@@ -1409,20 +1466,20 @@ export class Editor {
 
   /** Detect whether a font family appears available via canvas metrics. */
   fontAvailable(font: string): boolean {
+    if (SYSTEM_FONTS.has(font)) return true;
     const probe = 'mmmmmmmmmwwwwwwwlli';
     const canvas = makeCanvas(1, 1);
     const context = ctx(canvas);
-    context.font = `72px monospace`;
-    const base = context.measureText(probe).width;
-    context.font = `72px "${font}", monospace`;
-    const mixed = context.measureText(probe).width;
-    context.font = `72px "${font}"`;
-    const only = context.measureText(probe).width;
-    return mixed !== base || only !== base;
+    return ["monospace", "serif", "sans-serif"].some((fallback) => {
+      context.font = `72px ${fallback}`;
+      const base = context.measureText(probe).width;
+      context.font = `72px ${JSON.stringify(font)}, ${fallback}`;
+      return context.measureText(probe).width !== base;
+    });
   }
 
   addText(point: Point, value = "输入文字") {
-    const font = "Segoe UI" as TextContent["font"];
+    const font: TextContent["font"] = this.fontAvailable("Segoe UI") ? "Segoe UI" : "sans-serif";
     const missing = this.fontAvailable(font) ? undefined : font;
     const text: TextContent = {
       value,
@@ -1657,7 +1714,7 @@ export class Editor {
       estimateMemory(
         this.pixelBudget + this.width * this.height,
         this.width * this.height,
-        (this.snapshot?.length ?? 0) * 2,
+        (this.history[this.historyIndex]?.json.length ?? 0) * 2,
         this.historyBytes,
       ),
       this.memoryBudget,

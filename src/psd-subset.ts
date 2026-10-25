@@ -124,6 +124,7 @@ interface RawLayer {
   top: number;
   left: number;
   bottom: number;
+  right: number;
   opacity: number;
   clipping: number;
   flags: number;
@@ -936,22 +937,21 @@ export function decodePsdSubset(
       return value === "unsupported" && payloads[index][channelIndex].length >= 2 &&
         u16(payloads[index][channelIndex], 0) > 1;
     });
+    if (compressionLost) {
+      reportLayers.push(catalog(layer.name, "catalog", "压缩方式不在可编辑子集"));
+      lost.push(`图层 ${layer.name} 的压缩方式不在子集`);
+      return;
+    }
     const text = layer.text ? textContent(layer.text, issues, layer.name) : null;
     if (!pixelReady && !text) {
       reportLayers.push(
         catalog(
           layer.name,
           "catalog",
-          compressionLost
-            ? "压缩方式不在可编辑子集"
-            : "只读结构目录，不是可编辑图层",
+          "只读结构目录，不是可编辑图层",
         ),
       );
-      lost.push(
-        compressionLost
-          ? `图层 ${layer.name} 的压缩方式不在子集`
-          : `图层 ${layer.name} 没有可编辑像素或文字`,
-      );
+      lost.push(`图层 ${layer.name} 没有可编辑像素或文字`);
       return;
     }
 
@@ -1085,7 +1085,8 @@ export function decodePsdSubset(
     name: fileName.replace(/\.[^.]+$/, "").slice(0, 200) || "未命名",
     width,
     height,
-    layers: projectLayers,
+    // PSD records run top-to-bottom; the editor composites bottom-to-top.
+    layers: projectLayers.reverse(),
   };
   return {
     width,

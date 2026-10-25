@@ -5,8 +5,8 @@
     "index": "docs/demo-static/index.html",
     "page_flow": "docs/demo-static/PAGE-FLOW.html"
   },
-  "prototype_bundle_digest": "2bceb54e2dcad5aa5ea98ee59413c58d3fdc6c71167ddd905099906b6a152d8a",
-  "code_contract_digest": "9ec257498f5938e86609e018c90fcae0bc72f56f82867f2d70114d9478e13ca0",
+  "prototype_bundle_digest": "e22d71f00914cc7a5bc1c28334525bdb2d75cfe73e6bef02dcf5eec0ff7b9d17",
+  "code_contract_digest": "ce4e79b9b5377dd46671562499498395d9751b2ff2a8dd9b469f552841f12f64",
   "api_endpoints": [
     "/api/auth/oauth",
     "/api/bot",
@@ -14,32 +14,8 @@
   ],
   "tracked_code_files": [
     {
-      "path": ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
-      "sha256": "69cc14a14b6dd13253a20aa453b7041bec3a05b179c14a71cc242ac4f041811e"
-    },
-    {
-      "path": ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
-      "sha256": "8960c027a0bf84ea5b7aeecf16ef0344df29e5690e069b0815624a5ad05d258f"
-    },
-    {
-      "path": ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/src/App.tsx",
-      "sha256": "1ff60c053283c4874137c5bebfb9d2ff58e401ed9424d195b75439108c238657"
-    },
-    {
-      "path": ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
-      "sha256": "69cc14a14b6dd13253a20aa453b7041bec3a05b179c14a71cc242ac4f041811e"
-    },
-    {
-      "path": ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
-      "sha256": "8960c027a0bf84ea5b7aeecf16ef0344df29e5690e069b0815624a5ad05d258f"
-    },
-    {
-      "path": ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/src/App.tsx",
-      "sha256": "1ff60c053283c4874137c5bebfb9d2ff58e401ed9424d195b75439108c238657"
-    },
-    {
       "path": "electron/main.cjs",
-      "sha256": "69cc14a14b6dd13253a20aa453b7041bec3a05b179c14a71cc242ac4f041811e"
+      "sha256": "a807984acd69d1310c6bc408eb1fd48c31c6446fd3a130f7242465bdfe3ef033"
     },
     {
       "path": "service/server.mjs",
@@ -47,7 +23,7 @@
     },
     {
       "path": "src/App.tsx",
-      "sha256": "9e3f0ffe37c0ed9561c0be10d2890d2e05755d6b9f9d6988c166d628ddde9b34"
+      "sha256": "c803e340d1cd2472c2ebd822eb20cc451981e53415b73890841103c8a2b54c57"
     }
   ],
   "pages": [
@@ -56,12 +32,9 @@
       "sha256": "dd44c5d96029d8832f8d50012bd011ac4a3dee0e9dec6bf3ced39c1cb3565441",
       "surface": "flow",
       "bound_code_files": [
-        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
-        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
-        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/src/App.tsx",
-        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
-        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
-        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/src/App.tsx"
+        "electron/main.cjs",
+        "service/server.mjs",
+        "src/App.tsx"
       ],
       "bound_endpoints": [
         "/api/auth/oauth",
@@ -71,15 +44,12 @@
     },
     {
       "path": "docs/demo-static/index.html",
-      "sha256": "b6062ff750dc5e3161a38101a6028f847d973a404fcdbcfff45eda3e1b0d6da9",
+      "sha256": "37e1a3ce177a9c74f5fd645e2fb252877219181053b616d0b12fc8e1dbada59d",
       "surface": "index",
       "bound_code_files": [
-        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
-        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
-        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/src/App.tsx",
-        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
-        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
-        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/src/App.tsx"
+        "electron/main.cjs",
+        "service/server.mjs",
+        "src/App.tsx"
       ],
       "bound_endpoints": [
         "/api/auth/oauth",
@@ -92,12 +62,9 @@
       "sha256": "8f7ff9c42ae918cd509983230d056886b479b4deb2de27b3a0859e3acced2780",
       "surface": "user",
       "bound_code_files": [
-        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
-        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
-        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/src/App.tsx",
-        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
-        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
-        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/src/App.tsx"
+        "electron/main.cjs",
+        "service/server.mjs",
+        "src/App.tsx"
       ],
       "bound_endpoints": [
         "/api/auth/oauth",
@@ -110,12 +77,9 @@
       "sha256": "ce8b16d74acc5c15cb21e695f2022a85bf1fd20e7193286be3e17a3f32d118ad",
       "surface": "user",
       "bound_code_files": [
-        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
-        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
-        ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/src/App.tsx",
-        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
-        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
-        ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/src/App.tsx"
+        "electron/main.cjs",
+        "service/server.mjs",
+        "src/App.tsx"
       ],
       "bound_endpoints": [
         "/api/auth/oauth",
