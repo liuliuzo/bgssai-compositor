@@ -1,8 +1,8 @@
 # BGSSAI Compositor
 
-一款离线、以图层为核心的图像编辑软件。`0.2.0` 使用共享 React / Canvas 引擎、三端 Electron 和 iOS / Android Capacitor 原生工程。首版参考 [robbietilton/Compositor](https://github.com/robbietilton/Compositor) 的合成工作流，独立实现。
+一款离线、以图层为核心的 **Windows PC 桌面**图像编辑软件。产品愿景只交付桌面，主平台是 Windows 10 / Windows 11 x64。没有网页版，**不做 Web 部署**。`0.2.0` 的编辑器是 Electron 窗口里的 React / Canvas 引擎。`clients/ios` 与 `clients/android` 是实验性工程，**不是产品愿景**。首版参考 [robbietilton/Compositor](https://github.com/robbietilton/Compositor) 的合成工作流，独立实现。
 
-产品仓与 GitHub 仓库名均为 **bgssai-compositor**。
+产品仓与 GitHub 仓库名均为 **bgssai-compositor**。范围以 [PRODUCT_VISION.md](PRODUCT_VISION.md) 为准。
 
 ## 使用 Windows 版
 
@@ -40,9 +40,9 @@
 - 矩形、椭圆创建为像素图层；文字保持可编辑，栅格化后不能恢复文字内容，除非撤销。
 - 非正常混合模式的图层须先改为正常，才能向下合并，以免破坏依赖背景的合成效果。
 - 每个文档最多 1677 万像素，单边最多 8192 px；最多 40 个图层，总图层像素不超过 4800 万；文件和项目上限 128 MB。
-- 历史记录最多 30 步，并受最多 96 MB 的快照预算限制；桌面预计工作集上限 768 MB，移动端 320 MB。大项目解码和新图层分配前检查预算，拒绝超限操作。
+- 历史记录最多 30 步，并受最多 96 MB 的快照预算限制；Windows 桌面预计工作集上限 768 MB。大项目解码和新图层分配前检查预算，拒绝超限操作。
 - 编辑提交后约 1.5 秒自动保存恢复副本，连续编辑每 10 秒尝试保存最近完整提交。启动时可恢复或丢弃；保留两代有效快照，不覆盖正式项目。仍用 `Ctrl+S` 将项目保存到正式文件。
-- 移动端通过“打开”选择 `.bgcomp` 或图片；保存和导出创建 Documents 中独立副本并提供系统分享。iOS 无 Canvas filter 时使用软件颜色调整和近似高斯模糊，模糊边缘可能有小幅差异。
+- `clients/ios` 与 `clients/android` **不是产品愿景**（实验性，非目标）。其中的系统分享、Documents 副本和滤镜回退不能写成移动端交付。编辑器不部署为网站。
 
 ## 常用快捷键
 
@@ -62,7 +62,7 @@
 
 ## 本地开发与构建
 
-需要 Node.js **24** 和 npm。桌面在对应操作系统构建；Android 需要 Java 21、SDK 36；iOS 需要 macOS / Xcode。首次安装和原生依赖解析需要联网，运行编辑器可以离线。
+需要 Node.js **24** 和 npm。产品在 Windows 上构建和验收。首次安装需要联网，运行编辑器可以离线。
 
 ```powershell
 npm ci
@@ -81,9 +81,9 @@ npm run release:manifest
 
 生成的安装版、免安装版和未打包目录位于 `release/`。`release/`、`dist/` 和 `node_modules/` 不提交到 Git。
 
-macOS 使用 `npm run dist:mac -- --publish never`；Linux 使用 `npm run dist:linux -- --publish never`。本地无签名 macOS 构建另传 `--config.mac.identity=- --config.mac.notarize=false --config.mac.hardenedRuntime=false`。手机执行 `npm run mobile:sync`，然后在 `clients/android` / `clients/ios` 构建原生安装包。CI 上传构建 artifact；源码和工程不等于五端安装验收已完成。
+仓库里仍留有非愿景脚本：macOS 为 `npm run dist:mac -- --publish never`（无签名时另传 `--config.mac.identity=- --config.mac.notarize=false --config.mac.hardenedRuntime=false`），Linux 为 `npm run dist:linux -- --publish never`，实验性移动工程为 `npm run mobile:sync` 后在 `clients/android` / `clients/ios` 本地构建。这些脚本和 CI artifact 不是产品交付，也不等于安装验收。不要把它们写成网页版或五端产品。
 
-可选在线服务执行 `npm run build:shared` 后通过 `npm run service` 启动。先在相应 properties 填服务根地址、Chat 登记和 Hub 配置，并在服务环境提供密钥。默认空配置不发起网络请求。接口、权限、部署和签名凭据说明见 [COMP-02/04/05 实现及验收](docs/feature/COMP-02-04-05.md)。
+可选本地服务在 `npm run build:shared` 后用 `npm run service` 启动，只提供账号、同步、Bot 与 TokenHub 接口。它不是编辑器的 Web 部署。先在相应 properties 填服务根地址、Chat 登记和 Hub 配置，并在服务环境提供密钥。默认空配置不发起网络请求。接口与权限说明见 [COMP-02/04/05 实现及验收](docs/feature/COMP-02-04-05.md)。
 
 `npm run build` 执行 TypeScript 类型检查和渲染器构建；`npm start` 启动已经构建好的桌面程序。`npm run test` 检查项目格式和变换坐标；`npm run test:e2e` 在真实 Electron 中验证像素编辑、图层操作、文件往返和导出。测试使用应用自带的 Electron，无需下载 Playwright 浏览器。
 
@@ -94,17 +94,17 @@ macOS 使用 `npm run dist:mac -- --publish never`；Linux 使用 `npm run dist:
 - 所有源码修改通过工作分支的 draft PR 交付到 `develop`，默认由用户在 GitHub 上合并。
 - `dev` 与 `prod` 都使用 `develop` 分支；只通过 `config/application-dev.properties` / `config/application-prod.properties` 区分配置。
 - `npm run dev` 读取开发配置；打包应用使用生产配置。服务用 `APP_ENV=dev` / `prod` 选择同一 `develop` 源码的不同 properties；密钥只从服务环境读入。
-- PR / `develop` CI 构建五端；手工签名工作流只接受已在 `develop` 的版本 tag，五端签名构建成功后创建 draft Release，不自动发布或合并 PR。
+- 产品愿景是 Windows 桌面，没有网页部署。现有 CI 仍可能上传 macOS、Linux 或实验性移动构建；这些 artifact 不是愿景交付。手工签名工作流只接受已在 `develop` 的版本 tag，不自动发布或合并 PR。
 
 ## 项目结构
 
 ```text
-electron/      三端主进程、隔离的 preload、恢复存储和更新回滚
-clients/       Android / iOS 原生工程
-service/       可选 Chat 授权、同步、Bot 与 TokenHub 接入服务
+electron/      Windows 桌面主进程、隔离的 preload、恢复存储和更新回滚
+clients/       实验性 Android / iOS 工程，不是产品愿景
+service/       可选本地 Chat 授权、同步、Bot 与 TokenHub 接口（不是 Web 部署）
 distribution/  官网 / Bot / 其它应用的统一下载登记
 integration/   Bot 操作契约
-fixtures/      五端共同 bgcomp 样例
+fixtures/      桌面 .bgcomp 样例
 src/           中文工作台、Canvas 图像引擎、项目格式校验
 config/        dev / prod properties
 build/         原创应用图标
