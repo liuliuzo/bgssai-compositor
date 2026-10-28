@@ -1,7 +1,7 @@
 {
   "name": "bgssai-compositor",
   "version": "0.2.0",
-  "description": "Offline layer editor for Windows, macOS, Linux, iOS and Android",
+  "description": "Offline Windows desktop layer editor. No web deploy.",
   "private": true,
   "type": "module",
   "author": "BGSSAI <hello@bgssai.com>",
