@@ -116,3 +116,15 @@ docs/          项目文件格式与架构说明
 ## 参考与许可
 
 参考项目 [Compositor](https://github.com/robbietilton/Compositor) 是 Robbie Tilton 创建的 macOS 图像编辑应用，采用 MIT 许可。本项目参考其编辑工作流，没有复制或编译其 Swift 源码；Windows 代码、示例图形和图标为独立实现。本仓库代码采用 [MIT License](LICENSE)。React、Electron 等依赖遵循其各自的许可；Windows 包含 Electron 的第三方许可文件。
+---
+
+## Plan A Architecture Alignment (Central Ledger and Same-Region TokenHub)
+
+1. **Direct Self-Hosted LLM and Central Ledger in `bgssai-chat`**:
+   - `bgssai-chat-cn` and `bgssai-chat-global` connect directly to the company self-hosted LLM (`bgssai-chat`, not via TokenHub) and hold the central user account (OAuth 2.0 / OIDC third-party login, user-side only) and central subscription/token quota ledger (`bgssai_chat` for CN, `bgssai_chat_global` for Global).
+2. **Same-Region TokenHub Routing for All Other BGSSAI Applications**:
+   - All other BGSSAI applications connect strictly to same-region `bgssai-tokenhub-cn` (CN) or `bgssai-tokenhub-global` (Global) with zero cross-region fallback.
+   - Default model: company self-hosted LLM `bgssai-chat` at `0.5x` token consumption multiplier.
+   - `bgssai-tokenhub` branding, hostnames, and upstream keys are hidden in all user-facing UI.
+   - Model selectors display `0.5x / 1x / 1.5x` token consumption multipliers alongside compact `K / M / B` token counts (with exact integer hover and API payloads).
+   - Users must bind or sign in with `bgssai-chat` before calling LLMs, and all user-initiated token consumption settles against `bgssai-chat`'s central ledger (`docs/api/central-ledger.md`).
