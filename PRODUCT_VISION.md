@@ -51,3 +51,15 @@ Compositor 致力于消除传统大型图像软件的臃肿依赖与高昂订阅
 ### 3.4 区域身份矩阵与 Bot / MCP 最小授权托管
 - **离线优先与独立会话**：本地编辑与导入导出永久免登录可用；在线账号支持自助注册登录、手机/邮箱验证码、区域 Chat PKCE 授权及境内主流渠道（微信、抖音、百度、支付宝，未接入真实渠道前保持诚实 503 状态与禁用提示），应用内闭环支持登录方式绑定/解绑与自助账号注销。
 - **分项显式授权（`sync` / `ai` / `bot`）**：新会话默认关闭全部在线权限；Bot 与 MCP 工具调用须同时开启 `sync` 与 `bot` 授权，并在服务端强制执行用户数据隔离、`If-Match` 乐观并发控制与操作审计。
+---
+
+## Plan A Architecture Alignment (Central Ledger and Same-Region TokenHub)
+
+1. **Direct Self-Hosted LLM and Central Ledger in `bgssai-chat`**:
+   - `bgssai-chat-cn` and `bgssai-chat-global` connect directly to the company self-hosted LLM (`bgssai-chat`, not via TokenHub) and hold the central user account (OAuth 2.0 / OIDC third-party login, user-side only) and central subscription/token quota ledger (`bgssai_chat` for CN, `bgssai_chat_global` for Global).
+2. **Same-Region TokenHub Routing for All Other BGSSAI Applications**:
+   - All other BGSSAI applications connect strictly to same-region `bgssai-tokenhub-cn` (CN) or `bgssai-tokenhub-global` (Global) with zero cross-region fallback.
+   - Default model: company self-hosted LLM `bgssai-chat` at `0.5x` token consumption multiplier.
+   - `bgssai-tokenhub` branding, hostnames, and upstream keys are hidden in all user-facing UI.
+   - Model selectors display `0.5x / 1x / 1.5x` token consumption multipliers alongside compact `K / M / B` token counts (with exact integer hover and API payloads).
+   - Users must bind or sign in with `bgssai-chat` before calling LLMs, and all user-initiated token consumption settles against `bgssai-chat`'s central ledger (`docs/api/central-ledger.md`).

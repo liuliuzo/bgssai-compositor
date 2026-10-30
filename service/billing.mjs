@@ -10,6 +10,12 @@ function fail(status, message) {
 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 
+export const CENTRAL_LEDGER_SCHEMA = "bgssai_chat";
+export const HUB_CODE = "bgssai-tokenhub-cn";
+export const DEFAULT_MODEL_ID = "bgssai-chat";
+export const DEFAULT_MULTIPLIER = 0.5;
+export const ALLOWED_MULTIPLIERS = [0.5, 1, 1.5];
+
 const DEFAULT_PACKAGES = [
   {
     package_id: "comp_starter_100m",
