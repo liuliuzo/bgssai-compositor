@@ -19,3 +19,10 @@
 | --- | --- | --- | --- |
 | [OPC 静态差距审计](../feature/opc-gap-audit-20261019.md) | AUD-COMPOSITOR-20261019-01，细化多格式导入与 PSD 兼容 | [REQ-COMPOSITOR-PRODUCT-010](../feature/opc-requirements-20261017.md) | [REQ-COMPOSITOR-PRODUCT-101](../feature/opc-requirements-20261019.md)：[TC-COMPOSITOR-PRODUCT-101-P, TC-COMPOSITOR-PRODUCT-101-N](TC-opc-product-20261019.md) |
 | [OPC 静态差距审计](../feature/opc-gap-audit-20261019.md) | AUD-COMPOSITOR-20261019-02，细化图层编辑、保存恢复、导出与五端交付 | [REQ-COMPOSITOR-PRODUCT-001～003 与 PLATFORM-001～005](../feature/opc-requirements-20261017.md) | [REQ-COMPOSITOR-PRODUCT-102](../feature/opc-requirements-20261019.md)：[TC-COMPOSITOR-PRODUCT-102-P, TC-COMPOSITOR-PRODUCT-102-N](TC-opc-product-20261019.md) |
+
+## 2026-11-02 场景补充
+
+| 需求来源 | 新增用例 |
+| --- | --- |
+| [docs/feature/reference-ux-hardening-20261019.md](../../docs/feature/reference-ux-hardening-20261019.md) | TC-COMPOSITOR-SCAN-20261102-001-P, TC-COMPOSITOR-SCAN-20261102-001-N, TC-COMPOSITOR-SCAN-20261102-002-P, TC-COMPOSITOR-SCAN-20261102-002-N |
+| [docs/feature/model-price-receipts.md](../../docs/feature/model-price-receipts.md) | TC-COMPOSITOR-SCAN-20261102-003-P, TC-COMPOSITOR-SCAN-20261102-003-N |

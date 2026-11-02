@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "date": "2026-11-02",
+  "source_sha": "c3746b93bb0cb14836e69caf79294aa4be03d10e",
+  "reason": "真实产品源码的逐文件摘要、路由与原型逐页摘要均一致；仅历史清单混入两份 .codex-worktrees 副本。移除副本并将页面绑定规范为本仓真实路径。",
+  "verification": "Every indexed source and prototype file is Git-tracked and byte-identical (after LF normalization) to the fixed source_sha. No source/prototype HTML is edited. Existing valid page bindings retained; obsolete worktree prefixes removed.",
+  "previous_manifest_sha256": "0f1d9a5ef816e598a56da63eb69edfdc7032a12b6b694d5bd09231835afceee7",
+  "previous_code_digest": "9ec257498f5938e86609e018c90fcae0bc72f56f82867f2d70114d9478e13ca0",
+  "current_code_digest": "2d62395b2ca58659126f289684d5df6b1b55a856c6f7a61257c85b722d028945",
+  "previous_prototype_digest": "2bceb54e2dcad5aa5ea98ee59413c58d3fdc6c71167ddd905099906b6a152d8a",
+  "current_prototype_digest": "2bceb54e2dcad5aa5ea98ee59413c58d3fdc6c71167ddd905099906b6a152d8a",
+  "removed_noncurrent_inventory": [
+    ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
+    ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
+    ".codex-worktrees/aud-compositor-psd-20261022/bgssai-compositor/src/App.tsx",
+    ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/electron/main.cjs",
+    ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/service/server.mjs",
+    ".codex-worktrees/finish-compositor-psd-20261022/bgssai-compositor/src/App.tsx"
+  ],
+  "changed_code_history": {},
+  "changed_page_hashes": [],
+  "repaired_page_bindings": [
+    "docs/demo-static/PAGE-FLOW.html",
+    "docs/demo-static/index.html",
+    "docs/demo-static/model-price-receipts.html",
+    "docs/demo-static/recovery-startup.html"
+  ],
+  "removed_inventory_routes": [],
+  "runtime_acceptance": "Not implied by metadata repair; functional cases retain their recorded results.",
+  "prototype_checker_after": "PASS",
+  "errors_after": []
+}
