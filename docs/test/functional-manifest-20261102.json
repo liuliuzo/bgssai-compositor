@@ -1,0 +1,144 @@
+{
+  "schema": 1,
+  "date": "2026-11-02",
+  "repo": "liuliuzo/bgssai-compositor",
+  "local_repo": "bgssai-compositor",
+  "baseline": "c3746b93bb0cb14836e69caf79294aa4be03d10e",
+  "requirement_file": "docs/feature/functional-test-supplement-20261102.md",
+  "requirements": [
+    {
+      "id": "REQ-COMPOSITOR-SCAN-20261102-001",
+      "title": "双槽快照恢复与损坏图层隔离",
+      "cases": [
+        "TC-COMPOSITOR-SCAN-20261102-001-P",
+        "TC-COMPOSITOR-SCAN-20261102-001-N"
+      ],
+      "file": "docs/test/TC-scan-20261102-001.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-SCAN-20261102-002",
+      "title": "AI 图层确认与修订冲突",
+      "cases": [
+        "TC-COMPOSITOR-SCAN-20261102-002-P",
+        "TC-COMPOSITOR-SCAN-20261102-002-N"
+      ],
+      "file": "docs/test/TC-scan-20261102-002.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-SCAN-20261102-003",
+      "title": "凭证轮换后恢复待结算回执",
+      "cases": [
+        "TC-COMPOSITOR-SCAN-20261102-003-P",
+        "TC-COMPOSITOR-SCAN-20261102-003-N"
+      ],
+      "file": "docs/test/TC-scan-20261102-003.md"
+    }
+  ],
+  "cases": [
+    {
+      "id": "TC-COMPOSITOR-SCAN-20261102-001-P",
+      "requirement": "REQ-COMPOSITOR-SCAN-20261102-001",
+      "file": "TC-scan-20261102-001.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-SCAN-20261102-001-N",
+      "requirement": "REQ-COMPOSITOR-SCAN-20261102-001",
+      "file": "TC-scan-20261102-001.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-SCAN-20261102-002-P",
+      "requirement": "REQ-COMPOSITOR-SCAN-20261102-002",
+      "file": "TC-scan-20261102-002.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-SCAN-20261102-002-N",
+      "requirement": "REQ-COMPOSITOR-SCAN-20261102-002",
+      "file": "TC-scan-20261102-002.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-SCAN-20261102-003-P",
+      "requirement": "REQ-COMPOSITOR-SCAN-20261102-003",
+      "file": "TC-scan-20261102-003.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-SCAN-20261102-003-N",
+      "requirement": "REQ-COMPOSITOR-SCAN-20261102-003",
+      "file": "TC-scan-20261102-003.md",
+      "status": "待测",
+      "kind": "N"
+    }
+  ],
+  "coverage": [
+    {
+      "source": "docs/feature/reference-ux-hardening-20261019.md",
+      "title": "双槽快照恢复与损坏图层隔离",
+      "classification": "补充可执行边界与异常场景",
+      "legacy": [],
+      "requirements": [
+        "REQ-COMPOSITOR-SCAN-20261102-001",
+        "REQ-COMPOSITOR-SCAN-20261102-002"
+      ],
+      "cases": [
+        "TC-COMPOSITOR-SCAN-20261102-001-P",
+        "TC-COMPOSITOR-SCAN-20261102-001-N",
+        "TC-COMPOSITOR-SCAN-20261102-002-P",
+        "TC-COMPOSITOR-SCAN-20261102-002-N"
+      ]
+    },
+    {
+      "source": "docs/feature/model-price-receipts.md",
+      "title": "凭证轮换后恢复待结算回执",
+      "classification": "补充可执行边界与异常场景",
+      "legacy": [],
+      "requirements": [
+        "REQ-COMPOSITOR-SCAN-20261102-003"
+      ],
+      "cases": [
+        "TC-COMPOSITOR-SCAN-20261102-003-P",
+        "TC-COMPOSITOR-SCAN-20261102-003-N"
+      ]
+    }
+  ],
+  "historical_suites": [],
+  "progress": {
+    "待测": 6,
+    "通过": 0,
+    "失败": 0,
+    "阻塞": 0,
+    "不适用": 0
+  },
+  "suite_counts": {
+    "TC-scan-20261102-001.md": {
+      "待测": 2,
+      "通过": 0,
+      "失败": 0,
+      "阻塞": 0,
+      "不适用": 0
+    },
+    "TC-scan-20261102-002.md": {
+      "待测": 2,
+      "通过": 0,
+      "失败": 0,
+      "阻塞": 0,
+      "不适用": 0
+    },
+    "TC-scan-20261102-003.md": {
+      "待测": 2,
+      "通过": 0,
+      "失败": 0,
+      "阻塞": 0,
+      "不适用": 0
+    }
+  },
+  "design_only": true
+}

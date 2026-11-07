@@ -45,3 +45,11 @@
 
 机器可读清单：[functional-manifest-20261017.json](functional-manifest-20261017.json)、[functional-manifest-20261019.json](functional-manifest-20261019.json)。管理仓 `scripts/validate-functional-docs.py --repo <本仓路径>` 检查需求/用例ID、正反例、状态、链接、覆盖及历史套件指纹；20261019 套件不计入 20261017 清单的 progress 与 suite_counts。实际运行测试证据另行填写。
 <!-- OPC-VALIDATION-20261017 END -->
+
+## 2026-11-02 扫描补充
+
+新增 6 条具体正反向案例，均待测。[本轮需求](../feature/functional-test-supplement-20261102.md) · [逐需求矩阵](TRACEABILITY-20261102.md) · [完整文件扫描](SCAN-20261102.json) · [现行进度](PROGRESS.md)。
+
+### 校验与运行边界
+
+新增套件、编号、正反例、引用、SCAN 文件清单与统计校验通过；原测试文件未修改。完整现行门禁与固定 develop 基线对比见 [VALIDATION-20261102.json](VALIDATION-20261102.json)：本轮未增加门禁失败。 原型门禁曾被既有索引元数据阻塞，已逐文件核对固定基线后修复失效路径/聚合摘要；[审计记录](PROTOTYPE-METADATA-REVIEW-20261102.json)保存原摘要、差异与Git来源，原型HTML和业务源码未改，原型检查PASS。
