@@ -158,13 +158,29 @@ export function createAccountStore(dataDirectory) {
   }
 
   async function verifyLocalPassword(identifier, password) {
-    const cleanId = identifier.trim().toLowerCase();
+    let cleanId = identifier.trim().toLowerCase();
     let user;
     try {
       user = await readJson(path.join(localUsersDir, `${hash(cleanId)}.json`));
     } catch (error) {
-      if (error.code === "ENOENT") return null;
-      throw fail(503, "账号存储暂不可用");
+      if (error.code !== "ENOENT") throw fail(503, "账号存储暂不可用");
+      const normalizedPhone = cleanId.replace(/[\s-]/g, "").replace(/^(\+86|0086)/, "");
+      const bound =
+        (await getBinding("email", cleanId)) ??
+        (await getBinding("phone", cleanId)) ??
+        (await getBinding("phone", normalizedPhone)) ??
+        (await getBinding("phone", `+86${normalizedPhone}`));
+      if (!bound?.account_id) return null;
+      const allBindings = await listBindings(bound.account_id);
+      const pwBinding = allBindings.find((b) => b.provider === "password" && b.provider_uid);
+      if (!pwBinding) return null;
+      cleanId = String(pwBinding.provider_uid).trim().toLowerCase();
+      try {
+        user = await readJson(path.join(localUsersDir, `${hash(cleanId)}.json`));
+      } catch (innerErr) {
+        if (innerErr.code === "ENOENT") return null;
+        throw fail(503, "账号存储暂不可用");
+      }
     }
     if (
       !user ||
@@ -357,10 +373,40 @@ export function createAccountStore(dataDirectory) {
     return null;
   }
 
+  async function ensureOauthAccount({ provider, sub, name }) {
+    const cleanProvider = String(provider || "chat").trim().toLowerCase();
+    const cleanUid = String(sub || "").trim();
+    const binding = await getBinding(cleanProvider, cleanUid);
+    if (binding) {
+      const account = await loadAccount(binding.account_id);
+      if (account?.deleted_at) throw fail(403, "账号已注销，无法登录");
+      return { account, binding, sub: binding.sub ?? `${cleanProvider}:${cleanUid}` };
+    }
+    const resolvedSub = cleanProvider === "chat" ? cleanUid : `${cleanProvider}:${cleanUid}`;
+    const account = newAccount({ name: name ?? resolvedSub, primarySub: resolvedSub });
+    await saveAccount(account);
+    await putBinding(
+      {
+        provider: cleanProvider,
+        provider_uid: cleanUid,
+        account_id: account.account_id,
+        sub: resolvedSub,
+        created_at: Date.now(),
+      },
+      { exclusive: true },
+    );
+    return {
+      account,
+      binding: { provider: cleanProvider, provider_uid: cleanUid, account_id: account.account_id },
+      sub: resolvedSub,
+    };
+  }
+
   return {
     createLocalPasswordAccount,
     verifyLocalPassword,
     ensureChatAccount,
+    ensureOauthAccount,
     ensureOtpAccount,
     bindIdentity,
     unbindIdentity,

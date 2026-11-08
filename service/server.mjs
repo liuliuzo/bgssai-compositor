@@ -273,8 +273,23 @@ export function createService(config, transport = fetch) {
   let discovery,
     activeRequests = 0;
 
+  const isOauthProviderConfigured = (provider) => {
+    const cfg = config.oauthProviders?.[provider];
+    return Boolean(
+      cfg &&
+        typeof cfg.clientId === "string" &&
+        cfg.clientId.trim() &&
+        typeof cfg.authorizeUrl === "string" &&
+        cfg.authorizeUrl.startsWith("https://") &&
+        typeof cfg.tokenUrl === "string" &&
+        cfg.tokenUrl.startsWith("https://") &&
+        typeof cfg.userinfoUrl === "string" &&
+        cfg.userinfoUrl.startsWith("https://"),
+    );
+  };
+
   const unavailableAuthChannels = () => {
-    const list = [...CN_OAUTH_CHANNELS];
+    const list = CN_OAUTH_CHANNELS.filter((ch) => !isOauthProviderConfigured(ch));
     if (otp.delivery === "none") list.unshift("verification_code");
     return list.map((channel) => ({
       channel,
@@ -288,6 +303,9 @@ export function createService(config, transport = fetch) {
   const availableAuthChannels = () => {
     const channels = ["local", "chat"];
     if (otp.delivery !== "none") channels.push("verification_code");
+    for (const ch of CN_OAUTH_CHANNELS) {
+      if (isOauthProviderConfigured(ch)) channels.push(ch);
+    }
     return channels;
   };
 
@@ -1223,6 +1241,37 @@ export function createService(config, transport = fetch) {
       const url = new URL(req.url, publicOrigin);
       const route = `${req.method} ${url.pathname}`;
 
+      if (route === "GET /api/download/bot" || route === "GET /api/bot/download") {
+        const packages = [
+          {
+            platform: "windows",
+            arch: "x64",
+            architecture: "x64",
+            version: "0.2.0",
+            file_name: "bgssai-bot-setup-x64.exe",
+            url: "https://www.bgssai-chat.cn/downloads/bgssai-bot-setup-x64.exe",
+          },
+          {
+            platform: "linux",
+            arch: "x86_64",
+            architecture: "x86_64",
+            version: "0.2.0",
+            file_name: "bgssai-bot-linux-x86_64.tar.gz",
+            url: "https://www.bgssai-chat.cn/downloads/bgssai-bot-linux-x86_64.tar.gz",
+          },
+        ];
+        send(200, {
+          ok: true,
+          code: "0",
+          success: true,
+          product_code: PRODUCT_CODE,
+          platforms: ["windows", "linux"],
+          packages,
+          result: packages,
+        });
+        return;
+      }
+
       if (route === "GET /api/auth/channels") {
         send(200, {
           product_code: PRODUCT_CODE,
@@ -1370,8 +1419,100 @@ export function createService(config, transport = fetch) {
         return;
       }
 
-      // CN OAuth adapters remain unavailable; never synthesize identity from client claims.
+      // CN OAuth adapters fail closed with 503 unless explicitly configured with real endpoints.
       if (url.pathname.startsWith("/api/auth/oauth/") && ["GET", "POST"].includes(req.method)) {
+        const data = req.method === "POST" ? await body(req) : Object.fromEntries(url.searchParams);
+        const pathMatch = url.pathname.match(/^\/api\/auth\/oauth\/([a-z0-9_-]+)\/(authorize|callback)$/);
+        const provider = String(pathMatch?.[1] ?? data.provider ?? "").trim().toLowerCase();
+        const action = pathMatch?.[2] ?? (url.pathname.endsWith("/begin") ? "authorize" : url.pathname.endsWith("/callback") ? "callback" : "");
+        if (!CN_OAUTH_CHANNELS.includes(provider) || !isOauthProviderConfigured(provider)) {
+          throw fail(503, "第三方 OAuth 身份校验尚未接入，暂未启用");
+        }
+        const cfg = config.oauthProviders[provider];
+        if (action === "authorize") {
+          const reqId = random();
+          const state = random();
+          const authorize = new URL(cfg.authorizeUrl);
+          authorize.searchParams.set("client_id", cfg.clientId);
+          authorize.searchParams.set("appid", cfg.clientId);
+          authorize.searchParams.set("response_type", "code");
+          authorize.searchParams.set("redirect_uri", `${publicOrigin}/api/auth/oauth/${provider}/callback`);
+          authorize.searchParams.set("scope", cfg.scope ?? "basic");
+          authorize.searchParams.set("state", state);
+          pending.set(reqId, {
+            state,
+            provider,
+            expiresAt: now + 600000,
+          });
+          send(200, {
+            ok: true,
+            provider,
+            requestId: reqId,
+            request_id: reqId,
+            state,
+            authorizeUrl: authorize.href,
+            authorize_url: authorize.href,
+          });
+          return;
+        }
+        if (action === "callback") {
+          const state = String(data.state ?? "");
+          const code = String(data.code ?? "");
+          const entry = [...pending.values()].find((v) => v.state === state && v.provider === provider);
+          if (!entry || entry.exchanging || entry.session || entry.cancelled || !code) {
+            throw fail(400, "授权状态无效或缺少授权码");
+          }
+          entry.exchanging = true;
+          const tokenRes = await transport(cfg.tokenUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              grant_type: "authorization_code",
+              code,
+              client_id: cfg.clientId,
+              client_secret: cfg.clientSecret ?? "",
+              redirect_uri: `${publicOrigin}/api/auth/oauth/${provider}/callback`,
+            }),
+            redirect: "error",
+            signal: AbortSignal.timeout(15000),
+          });
+          if (!tokenRes.ok) throw fail(401, "第三方 OAuth 换票失败");
+          const tokens = await tokenRes.json();
+          const accessToken = tokens.access_token ?? tokens.data?.access_token;
+          if (typeof accessToken !== "string" || !accessToken) throw fail(502, "第三方 OAuth 换票响应无效");
+          const infoRes = await transport(cfg.userinfoUrl, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            redirect: "error",
+            signal: AbortSignal.timeout(15000),
+          });
+          if (!infoRes.ok) throw fail(401, "第三方 OAuth 身份验证失败");
+          const info = await infoRes.json();
+          const extSub = String(info.sub ?? info.openid ?? info.open_id ?? info.userid ?? info.user_id ?? "");
+          if (!extSub) throw fail(502, "第三方 OAuth 身份缺少唯一标识");
+          const displayName = String(info.nickname ?? info.name ?? info.username ?? `${provider}_${extSub.slice(0, 8)}`).slice(0, 200);
+          const { account, sub } = await accounts.ensureOauthAccount({
+            provider,
+            sub: extSub,
+            name: displayName,
+          });
+          await accounts.recordAuthGrant({ accountId: account.account_id, provider, subject: extSub });
+          const created = createSessionRecord({
+            sub,
+            name: displayName,
+            authChannel: provider,
+            accountId: account.account_id,
+          });
+          entry.session = created.publicSession;
+          send(200, {
+            ok: true,
+            token: created.token,
+            user_id: sub,
+            auth_channel: provider,
+            account_id: account.account_id,
+            session: created.publicSession,
+          });
+          return;
+        }
         throw fail(503, "第三方 OAuth 身份校验尚未接入，暂未启用");
       }
 
@@ -1647,6 +1788,7 @@ export function createService(config, transport = fetch) {
         (url.pathname.startsWith("/api/bot/") &&
           route !== "POST /api/bot/token" &&
           route !== "POST /api/bot/pat") ||
+        url.pathname === "/api/mcp" ||
         url.pathname.startsWith("/api/mcp/");
       const { token, session } = authorized(req, isBot);
 
@@ -1780,6 +1922,88 @@ export function createService(config, transport = fetch) {
           product_code: PRODUCT_CODE,
           tools: MCP_TOOLS,
         });
+        return;
+      }
+
+      if (route === "POST /api/mcp") {
+        const data = await body(req);
+        if (data && data.jsonrpc === "2.0" && typeof data.method === "string") {
+          const rpcId = data.id ?? null;
+          if (data.method === "initialize") {
+            send(200, {
+              jsonrpc: "2.0",
+              id: rpcId,
+              result: {
+                protocolVersion: "2024-11-05",
+                capabilities: { tools: {} },
+                serverInfo: { name: "bgssai-compositor-mcp", version: "0.2.0" },
+              },
+            });
+            return;
+          }
+          if (data.method === "notifications/initialized") {
+            send(200, { jsonrpc: "2.0", id: rpcId, result: {} });
+            return;
+          }
+          if (data.method === "tools/list") {
+            send(200, {
+              jsonrpc: "2.0",
+              id: rpcId,
+              result: {
+                tools: MCP_TOOLS.map((t) => ({
+                  name: t.name,
+                  description: t.description,
+                  inputSchema: {
+                    type: "object",
+                    properties: {
+                      project_id: { type: "string" },
+                      name: { type: "string" },
+                    },
+                  },
+                })),
+              },
+            });
+            return;
+          }
+          if (data.method === "tools/call") {
+            const params = data.params && typeof data.params === "object" ? data.params : {};
+            const toolName = String(params.name ?? params.tool ?? "");
+            const args = params.arguments && typeof params.arguments === "object" ? params.arguments : {};
+            try {
+              const opResult = await executeBotOrMcpOperation(req, session, {
+                ...args,
+                action: toolName,
+              });
+              send(200, {
+                jsonrpc: "2.0",
+                id: rpcId,
+                result: {
+                  content: [{ type: "text", text: JSON.stringify(opResult) }],
+                  structuredContent: opResult,
+                  isError: false,
+                },
+              });
+            } catch (err) {
+              send(200, {
+                jsonrpc: "2.0",
+                id: rpcId,
+                error: {
+                  code: err.status === 403 ? -32003 : -32000,
+                  message: err.message || "MCP 调用失败",
+                },
+              });
+            }
+            return;
+          }
+          send(200, {
+            jsonrpc: "2.0",
+            id: rpcId,
+            error: { code: -32601, message: `Method not found: ${data.method}` },
+          });
+          return;
+        }
+        const result = await executeBotOrMcpOperation(req, session, data);
+        send(200, result);
         return;
       }
 

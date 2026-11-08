@@ -285,10 +285,18 @@ export function Connections({
                     ? "手机 / 邮箱验证码登录"
                     : "未启用：手机 / 邮箱验证码登录"}
                 </option>
-                <option disabled value="wechat">未启用：微信登录 (wechat)</option>
-                <option disabled value="alipay">未启用：支付宝登录 (alipay)</option>
-                <option disabled value="douyin">未启用：抖音登录 (douyin)</option>
-                <option disabled value="baidu">未启用：百度登录 (baidu)</option>
+                <option disabled={!channels.includes("wechat")} value="wechat">
+                  {channels.includes("wechat") ? "微信扫码登录 (wechat)" : "未启用：微信登录 (wechat)"}
+                </option>
+                <option disabled={!channels.includes("alipay")} value="alipay">
+                  {channels.includes("alipay") ? "支付宝登录 (alipay)" : "未启用：支付宝登录 (alipay)"}
+                </option>
+                <option disabled={!channels.includes("douyin")} value="douyin">
+                  {channels.includes("douyin") ? "抖音登录 (douyin)" : "未启用：抖音登录 (douyin)"}
+                </option>
+                <option disabled={!channels.includes("baidu")} value="baidu">
+                  {channels.includes("baidu") ? "百度登录 (baidu)" : "未启用：百度登录 (baidu)"}
+                </option>
               </select>
             </label>
             {authChannel === "local" && (
