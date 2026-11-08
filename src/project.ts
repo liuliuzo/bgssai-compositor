@@ -16,7 +16,7 @@ export const BLENDS = [
   ["color", "颜色"],
   ["luminosity", "明度"],
 ] as const;
-export const FONTS = ["Segoe UI", "Arial", "Georgia", "Consolas"] as const;
+export const FONTS = ["Segoe UI", "Arial", "Georgia", "Consolas", "sans-serif", "serif", "monospace"] as const;
 export type Blend = (typeof BLENDS)[number][0];
 export type TextAlign = "left" | "center" | "right";
 export type LayerKind = "raster" | "text" | "shape" | "adjustment";
@@ -111,7 +111,27 @@ export interface ProjectData {
   width: number;
   height: number;
   layers: LayerData[];
+  selection?: SelectionData;
+  history?: ProjectHistory;
 }
+
+export interface SelectionData {
+  kind: SelectionKind;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  points?: Point[];
+  image?: string;
+}
+
+export interface ProjectHistory {
+  entries: { json: string; label: string; selectedId: string }[];
+  index: number;
+}
+
+export const MAX_HISTORY_ENTRIES = 30;
+export const MAX_HISTORY_BYTES = 96 * 1024 * 1024;
 
 export const MAX_DIMENSION = 8192;
 export const MAX_DOCUMENT_PIXELS = 16_777_216;
@@ -290,7 +310,45 @@ function parseAdjustment(value: unknown): AdjustmentLayerParams {
   };
 }
 
+function parseSelection(value: unknown, width: number, height: number): SelectionData {
+  const data = record(value);
+  const kind = string(data.kind, 16) as SelectionKind;
+  if (!["rect", "ellipse", "lasso", "polygon", "wand"].includes(kind))
+    throw new Error("选区类型无效。");
+  const selection: SelectionData = {
+    kind,
+    x: number(data.x, 0, width),
+    y: number(data.y, 0, height),
+    width: number(data.width, 0, width),
+    height: number(data.height, 0, height),
+  };
+  if (selection.width <= 0 || selection.height <= 0 ||
+      selection.x + selection.width > width || selection.y + selection.height > height)
+    throw new Error("选区超出画布范围。");
+  if (data.points !== undefined) {
+    if (!Array.isArray(data.points) || data.points.length > 20000)
+      throw new Error("选区点数超出允许范围。");
+    selection.points = data.points.map((value) => {
+      const point = record(value);
+      return { x: number(point.x, -100000, 100000), y: number(point.y, -100000, 100000) };
+    });
+  }
+  if (data.image !== undefined) {
+    selection.image = string(data.image, MAX_PROJECT_BYTES);
+    const size = pngDimensions(selection.image);
+    if (size.width !== width || size.height !== height)
+      throw new Error("选区遮罩尺寸与画布不一致。");
+  }
+  if (kind === "wand" && !selection.image)
+    throw new Error("魔棒选区缺少遮罩。");
+  return selection;
+}
+
 export function parseProject(json: string): ProjectData {
+  return parseProjectDocument(json, true);
+}
+
+function parseProjectDocument(json: string, allowHistory: boolean): ProjectData {
   if (new TextEncoder().encode(json).byteLength > MAX_PROJECT_BYTES)
     throw new Error("项目文件超过 128 MB。");
   let parsed: unknown;
@@ -300,6 +358,8 @@ export function parseProject(json: string): ProjectData {
     throw new Error("项目文件不是有效的 JSON。");
   }
   const data = record(parsed);
+  if (!allowHistory && data.history !== undefined)
+    throw new Error("历史快照不能包含嵌套历史。");
   if (data.format !== "bgssai-compositor" || data.version !== 1)
     throw new Error("不支持的项目格式或版本。");
   const width = number(data.width, 1, MAX_DIMENSION);
@@ -370,7 +430,7 @@ export function parseProject(json: string): ProjectData {
       result.adjustment = parseAdjustment(layer.adjustment);
     return result;
   });
-  return {
+  const project: ProjectData = {
     format: "bgssai-compositor",
     version: 1,
     name: string(data.name, 200),
@@ -378,6 +438,33 @@ export function parseProject(json: string): ProjectData {
     height,
     layers,
   };
+  if (data.selection !== undefined)
+    project.selection = parseSelection(data.selection, width, height);
+  if (data.history !== undefined) {
+    const history = record(data.history);
+    if (!Array.isArray(history.entries) || history.entries.length < 1 ||
+        history.entries.length > MAX_HISTORY_ENTRIES)
+      throw new Error("历史记录须包含 1–30 个快照。");
+    const index = history.index;
+    if (typeof index !== "number" || !Number.isInteger(index) || index < 0 || index >= history.entries.length)
+      throw new Error("历史记录位置无效。");
+    let bytes = 0;
+    const entries = history.entries.map((value) => {
+      const entry = record(value);
+      const snapshot = string(entry.json, MAX_PROJECT_BYTES);
+      bytes += snapshot.length * 2;
+      if (bytes > MAX_HISTORY_BYTES) throw new Error("历史记录超过 96 MB。");
+      const document = parseProjectDocument(snapshot, false);
+      const selectedId = string(entry.selectedId, 100);
+      if (!document.layers.some((layer) => layer.id === selectedId))
+        throw new Error("历史记录中的选中图层无效。");
+      return { json: JSON.stringify(document), label: string(entry.label, 200), selectedId };
+    });
+    if (entries[index].json !== JSON.stringify(project))
+      throw new Error("当前工程与历史快照不一致。");
+    project.history = { entries, index };
+  }
+  return project;
 }
 
 export interface Point {

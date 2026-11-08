@@ -279,7 +279,9 @@ function TextProperties({
           }
         >
           {FONTS.map((font) => (
-            <option key={font}>{font}</option>
+            <option key={font} value={font}>
+              {({ "sans-serif": "系统字体", serif: "系统衬线字体", monospace: "系统等宽字体" } as Record<string, string>)[font] ?? font}
+            </option>
           ))}
         </select>
         <NumberField
@@ -621,7 +623,7 @@ export function App() {
   const save = useCallback(
     async (saveAs = false) => {
       assertCanSave(editor.layers);
-      const json = editor.serialize();
+      const json = editor.serialize(true);
       if (window.desktop) {
         const result = await window.desktop.saveProject(
           editor.name,
@@ -750,7 +752,7 @@ export function App() {
             editor.duplicate();
             break;
           case "deselect":
-            editor.selection = null;
+            editor.deselect();
             setPolygonPoints([]);
             editor.notify();
             break;
@@ -965,7 +967,7 @@ export function App() {
           return;
         }
         setModal(null);
-        editor.selection = null;
+        if (!working && !editor.busy && !gesture.current) safe(() => editor.deselect());
         editor.notify();
         return;
       }
@@ -1790,7 +1792,7 @@ export function App() {
             </Button>
             <Button
               onClick={() => {
-                editor.selection = null;
+                safe(() => editor.deselect());
                 setPolygonPoints([]);
                 editor.notify();
               }}
@@ -3072,7 +3074,7 @@ export function App() {
                   </>
                 )}
                 <p className="export-note">
-                  需要保留可编辑图层？请使用“保存项目”生成 .bgcomp 文件。缺少字体、磁盘已满或工程损坏时会明确失败，不会记成导出成功。Windows、macOS、Linux、iOS、Android 的签名安装包当前都因没有签名证书而阻塞。
+                  使用“保存项目”生成 .bgcomp 文件，可以保留可编辑图层、选区和最近的撤销、重做记录。缺少字体时请先更换字体；磁盘空间不足或工程损坏时会停止导出并提示原因。
                 </p>
                 <div className="modal-actions">
                   <Button onClick={() => setModal(null)}>取消</Button>
@@ -3142,7 +3144,7 @@ export function App() {
                 </p>
                 <p className="muted">
                   {importReport.support === "editable"
-                    ? "已导入声明的可编辑子集（8 位 RGB 像素图层、简单用户蒙版、带 Txt 的简单文字）。不是完整 Photoshop 兼容。"
+                    ? "支持导入的可编辑内容：8 位 RGB 像素图层、简单用户蒙版和文字。暂不支持全部 Photoshop 功能。"
                     : importReport.support === "partial" && importReport.projectJson
                       ? "部分支持：声明子集内的图层可编辑，其余项已列入损失，不会标成可编辑。"
                       : importReport.support === "partial"
@@ -3163,7 +3165,7 @@ export function App() {
                         {layer.editable ? "可编辑" : "只读"} · {layer.name}
                         <small>
                           {" "}
-                          · {layer.kind}
+                          · {({ catalog: "图层目录", raster: "像素图层", rasterized: "合成图像", text: "文字图层", adjustment: "调整图层", "smart-object": "智能对象", group: "图层组", unsupported: "暂不支持" } as Record<string, string>)[layer.kind] ?? "图层"}
                           {layer.note ? ` · ${layer.note}` : ""}
                         </small>
                       </p>
@@ -3173,7 +3175,7 @@ export function App() {
                 <div className="help-note">
                   {importReport.issues.map((issue, i) => (
                     <p key={i}>
-                      [{issue.severity}] {issue.message}
+                      {({ info: "说明", warning: "注意", error: "无法导入" })[issue.severity]}：{issue.message}
                     </p>
                   ))}
                 </div>

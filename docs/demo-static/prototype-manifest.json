@@ -15,7 +15,7 @@
   "tracked_code_files": [
     {
       "path": "electron/main.cjs",
-      "sha256": "69cc14a14b6dd13253a20aa453b7041bec3a05b179c14a71cc242ac4f041811e"
+      "sha256": "a807984acd69d1310c6bc408eb1fd48c31c6446fd3a130f7242465bdfe3ef033"
     },
     {
       "path": "service/server.mjs",
@@ -23,7 +23,7 @@
     },
     {
       "path": "src/App.tsx",
-      "sha256": "9e3f0ffe37c0ed9561c0be10d2890d2e05755d6b9f9d6988c166d628ddde9b34"
+      "sha256": "c803e340d1cd2472c2ebd822eb20cc451981e53415b73890841103c8a2b54c57"
     }
   ],
   "pages": [
@@ -44,7 +44,7 @@
     },
     {
       "path": "docs/demo-static/index.html",
-      "sha256": "b6062ff750dc5e3161a38101a6028f847d973a404fcdbcfff45eda3e1b0d6da9",
+      "sha256": "37e1a3ce177a9c74f5fd645e2fb252877219181053b616d0b12fc8e1dbada59d",
       "surface": "index",
       "bound_code_files": [
         "electron/main.cjs",

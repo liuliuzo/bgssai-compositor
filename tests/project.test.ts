@@ -52,6 +52,51 @@ test("editable projects preserve layer metadata without accepting unknown proper
   assert.deepEqual(parsed, original);
   assert.equal("admin" in parsed, false);
 });
+
+test("project round trip retains selection and bounded undo/redo snapshots", () => {
+  const first = project();
+  const current = project();
+  current.selection = { kind: "polygon", x: 2, y: 3, width: 10, height: 12,
+    points: [{ x: 2, y: 3 }, { x: 12, y: 3 }, { x: 12, y: 15 }] };
+  const future = { ...current, name: "重做后的名称" };
+  const saved: ProjectData = { ...current, history: { index: 1, entries: [first, current, future].map((value) => ({
+    json: JSON.stringify(value), label: "编辑", selectedId: "one",
+  })) } };
+  const parsed = parseProject(JSON.stringify(saved));
+  assert.deepEqual(parsed.selection, current.selection);
+  assert.equal(parsed.history?.index, 1);
+  assert.equal(JSON.parse(parsed.history!.entries[2].json).name, "重做后的名称");
+  assert.deepEqual(parseProject(JSON.stringify(parsed)), parsed);
+});
+
+test("system font replacements remain editable across project round trips", () => {
+  for (const font of ["sans-serif", "serif", "monospace"] as const) {
+    const data = project();
+    data.layers[0].kind = "text";
+    data.layers[0].text = { value: "跨端文字", font, size: 24, color: "#000000", bold: false };
+    assert.deepEqual(parseProject(JSON.stringify(data)).layers[0].text, data.layers[0].text);
+  }
+});
+
+test("invalid selection and history cannot be adopted as a project", () => {
+  for (const selection of [
+    { kind: "unknown", x: 0, y: 0, width: 1, height: 1 },
+    { kind: "rect", x: 127, y: 0, width: 2, height: 1 },
+    { kind: "rect", x: 0, y: 0, width: 0, height: 1 },
+    { kind: "wand", x: 0, y: 0, width: 1, height: 1 },
+    { kind: "rect", x: 0, y: 0, width: 1, height: 1, image: png },
+  ]) assert.throws(() => parseProject(JSON.stringify({ ...project(), selection })), /选区/);
+  const entry = { json: JSON.stringify(project()), label: "打开", selectedId: "one" };
+  for (const history of [
+    { index: 0, entries: [] },
+    { index: 1, entries: [entry] },
+    { index: 0.5, entries: [entry, entry] },
+    { index: 0, entries: Array.from({ length: 31 }, () => entry) },
+    { index: 0, entries: [{ ...entry, selectedId: "missing" }] },
+    { index: 0, entries: [{ ...entry, json: JSON.stringify({ ...project(), name: "不一致" }) }] },
+    { index: 0, entries: [{ ...entry, json: JSON.stringify({ ...project(), history: {} }) }] },
+  ]) assert.throws(() => parseProject(JSON.stringify({ ...project(), history })), /历史/);
+});
 test("rejects bad versions, truncated images, duplicate IDs and malformed values", () => {
   assert.throws(() => parseProject("{"), /JSON/);
   assert.throws(
