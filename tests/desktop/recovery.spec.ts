@@ -40,7 +40,7 @@ test.afterEach(async () => {
   }
   expect(path.dirname(directory)).toBe(path.resolve(os.tmpdir()));
   expect(path.basename(directory)).toMatch(/^compositor-test-/);
-  await fs.rm(directory, { recursive: true, force: true });
+  await fs.rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
 test("document actions wait for recovery initialization before accepting clicks", async () => {
   await app.evaluate(({ ipcMain }) => {
@@ -79,6 +79,7 @@ test("force exit recovers editable project and saving clears recovery", async ()
   );
   const data = await page.evaluate(() => window.desktop!.readRecovery());
   expect(JSON.parse(data!.content).layers[0].name).toBe("恢复图层");
+  expect(JSON.parse(data!.content).history.entries.length).toBeGreaterThan(1);
   const pid = await app.evaluate(() => process.pid);
   alive = false;
   if (process.platform === "win32")
@@ -97,6 +98,10 @@ test("force exit recovers editable project and saving clears recovery", async ()
     page.getByRole("button", { name: "恢复上次项目", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "恢复上次项目", exact: true }).click();
+  await expect(page.getByLabel("图层名称")).toHaveValue("恢复图层");
+  await page.getByRole("button", { name: "撤销 (Ctrl+Z)", exact: true }).click();
+  await expect(page.getByLabel("图层名称")).not.toHaveValue("恢复图层");
+  await page.getByRole("button", { name: "重做 (Ctrl+Shift+Z)", exact: true }).click();
   await expect(page.getByLabel("图层名称")).toHaveValue("恢复图层");
   await expect(page.locator(".dirty-dot")).toBeVisible();
   const target = path.join(directory, "restored.bgcomp");
