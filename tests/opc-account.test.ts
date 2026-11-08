@@ -236,3 +236,70 @@ test("account deletion requires verification and blocks re-login", async () =>
       await service.close();
     }
   }));
+
+test("bot download catalog and JSON-RPC 2.0 POST /api/mcp work end-to-end", async () =>
+  directoryFixture(async (directory) => {
+    const service = await start(directory, "file");
+    try {
+      const dlRes = await service.request("/api/download/bot");
+      assert.equal(dlRes.status, 200);
+      const dl = await dlRes.json();
+      assert.equal(dl.success, true);
+      assert.ok(Array.isArray(dl.packages) && dl.packages.length >= 2);
+      assert.ok(dl.packages.some((p: { platform: string }) => p.platform === "linux"));
+      assert.ok(dl.packages.some((p: { platform: string }) => p.platform === "windows"));
+
+      const regRes = await service.request("/api/auth/register", "POST", {
+        username: "mcp_tester",
+        password: "secret12",
+      });
+      assert.equal(regRes.status, 200);
+      const { session } = await regRes.json();
+      await service.request(
+        "/api/grants",
+        "PUT",
+        { sync: true, ai: true, bot: true },
+        session.token,
+      );
+      const botRes = await service.request("/api/bot/token", "POST", {}, session.token);
+      const { token: botToken } = await botRes.json();
+
+      const initRes = await service.request(
+        "/api/mcp",
+        "POST",
+        { jsonrpc: "2.0", id: 1, method: "initialize", params: {} },
+        botToken,
+      );
+      assert.equal(initRes.status, 200);
+      const initBody = await initRes.json();
+      assert.equal(initBody.jsonrpc, "2.0");
+      assert.equal(initBody.id, 1);
+      assert.equal(initBody.result.serverInfo.name, "bgssai-compositor-mcp");
+
+      const listRes = await service.request(
+        "/api/mcp",
+        "POST",
+        { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} },
+        botToken,
+      );
+      const listBody = await listRes.json();
+      assert.ok(Array.isArray(listBody.result.tools) && listBody.result.tools.length >= 5);
+
+      const callRes = await service.request(
+        "/api/mcp",
+        "POST",
+        {
+          jsonrpc: "2.0",
+          id: 3,
+          method: "tools/call",
+          params: { name: "create_project", arguments: { name: "MCP Canvas" } },
+        },
+        botToken,
+      );
+      const callBody = await callRes.json();
+      assert.equal(callBody.result.isError, false);
+      assert.equal(callBody.result.structuredContent.name, "MCP Canvas");
+    } finally {
+      await service.close();
+    }
+  }));
