@@ -111,6 +111,7 @@ type Modal =
   | "connections"
   | "updates"
   | "support"
+  | "bot-download"
   | "import-report"
   | "image-size"
   | "canvas-size"
@@ -513,10 +514,100 @@ function SupportModal({
   );
 }
 
+function BotDownloadModal({
+  close,
+  message,
+}: {
+  close: () => void;
+  message: (value: string, error?: boolean) => void;
+}) {
+  const defaultPackages = [
+    {
+      platform: "windows",
+      arch: "x64",
+      version: "0.2.0",
+      file_name: "bgssai-bot-setup-x64.exe",
+      url: "https://chat.bgssai.cn/downloads/bgssai-bot-setup-x64.exe",
+    },
+    {
+      platform: "linux",
+      arch: "x86_64",
+      version: "0.2.0",
+      file_name: "bgssai-bot-linux-x86_64.tar.gz",
+      url: "https://chat.bgssai.cn/downloads/bgssai-bot-linux-x86_64.tar.gz",
+    },
+  ];
+  const [packages, setPackages] = useState(defaultPackages);
+
+  useEffect(() => {
+    let active = true;
+    void request("download/bot", "GET")
+      .then((res) => {
+        if (active && Array.isArray(res?.packages) && res.packages.length > 0) {
+          setPackages(res.packages);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return (
+    <div className="modal-backdrop">
+      <section
+        className="modal connections"
+        role="dialog"
+        aria-modal="true"
+        aria-label="下载与接入 BGSSAI Bot"
+      >
+        <div className="modal-heading">
+          <h2>下载与托管 BGSSAI Bot (/download/bot)</h2>
+          <button onClick={close}>关闭</button>
+        </div>
+        <p>
+          BGSSAI Bot 面向 OPC 创作者提供自动化图层批处理与 MCP 托管协同，固定使用公司自建模型并须通过{" "}
+          <code>https://chat.bgssai.cn</code> 用户侧账号授权登录。
+        </p>
+        <div className="help-note">
+          <strong>官方安装包（来自 https://chat.bgssai.cn）</strong>
+          {packages.map((pkg) => (
+            <p key={`${pkg.platform}-${pkg.arch}`}>
+              {pkg.platform.toUpperCase()} ({pkg.arch}) · v{pkg.version} · {pkg.file_name}{" "}
+              <button
+                type="button"
+                className="primary"
+                onClick={() =>
+                  void openExternal(pkg.url).catch((e) =>
+                    message(formatServiceError((e as Error).message), true),
+                  )
+                }
+              >
+                下载 {pkg.platform === "windows" ? "Windows 安装版" : "Linux 归档包"}
+              </button>
+            </p>
+          ))}
+        </div>
+        <p>
+          安装完成后，请在“账户与连接”中开启“账户项目同步”与“Bot / MCP 项目操作与下载”，生成受隔离保护的 Bot / MCP 专用令牌。
+        </p>
+      </section>
+    </div>
+  );
+}
+
 export function App() {
   const revision = useSyncExternalStore(editor.subscribe, editor.getRevision);
+  const isEmbeddedShell =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("bgssai_shell") === "1";
+  const initialModal: Modal =
+    typeof window !== "undefined" &&
+    window.location.pathname.replace(/\/+$/, "") === "/download/bot"
+      ? "bot-download"
+      : null;
   const [welcome, setWelcome] = useState(true);
-  const [modal, setModal] = useState<Modal>(null);
+  const [modal, setModal] = useState<Modal>(initialModal);
   const [zoom, setZoom] = useState(0.6);
   const [toast, setToast] = useState<{ text: string; error: boolean } | null>(
     null,
@@ -1506,7 +1597,11 @@ export function App() {
 
   const documentActionDisabled = working || !recoveryReady || Boolean(recoveryOffer);
   return (
-    <div className="app" aria-busy={working || editor.busy || !recoveryReady}>
+    <div
+      className={`app${isEmbeddedShell ? " app-shell-embedded" : ""}`}
+      data-bgssai-shell={isEmbeddedShell ? "1" : undefined}
+      aria-busy={working || editor.busy || !recoveryReady}
+    >
       <header className="topbar">
         <div className="brand">
           <Layers3 size={23} />
@@ -1542,12 +1637,7 @@ export function App() {
         <div className="header-end">
           <Button
             title="下载 Bot"
-            onClick={() =>
-              void openExternal("https://www.bgssai.com/download/bot/").catch(
-                (e) =>
-                  message(formatServiceError((e as Error).message), true),
-              )
-            }
+            onClick={() => setModal("bot-download")}
           >
             下载 Bot
           </Button>
@@ -2847,9 +2937,17 @@ export function App() {
       {modal === "updates" && (
         <Updates close={() => setModal(null)} message={message} />
       )}
+      {modal === "support" && (
+        <SupportModal close={() => setModal(null)} message={message} />
+      )}
+      {modal === "bot-download" && (
+        <BotDownloadModal close={() => setModal(null)} message={message} />
+      )}
       {((modal &&
         modal !== "connections" &&
-        modal !== "updates") ||
+        modal !== "updates" &&
+        modal !== "support" &&
+        modal !== "bot-download") ||
         confirm) && (
         <div className="modal-backdrop">
           <section

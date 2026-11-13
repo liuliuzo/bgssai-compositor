@@ -21,7 +21,12 @@ import storage from "../electron/storage.cjs";
 import { HubReceipts, modelFields } from "./hub-receipts.mjs";
 import { createAccountStore } from "./accounts.mjs";
 import { createOtpService } from "./otp.mjs";
-import { createBillingStore } from "./billing.mjs";
+import {
+  createBillingStore,
+  createCentralQuotaBridge,
+  resolveModelMultiplier,
+  ALLOWED_MULTIPLIERS,
+} from "./billing.mjs";
 
 const PRODUCT_CODE = "compositor";
 const PRODUCT_HEADER = "bgssai-compositor";
@@ -31,6 +36,19 @@ const DEFAULT_PNG =
 
 const DEFAULT_MODEL_CATALOG = [
   {
+    id: "bgssai-chat",
+    model_id: "bgssai-chat",
+    name: "BGSSAI Chat",
+    display_name: "BGSSAI Chat (CN)",
+    provider: "bgssai",
+    region: "cn",
+    hub_provider: "bgssai-tokenhub-cn",
+    billing_multiplier: 0.5,
+    capabilities: ["text", "copywriting", "layer_layout", "inpainting", "layer_generation"],
+    max_tokens: 2048,
+    is_default: true,
+  },
+  {
     id: "qwen-plus",
     model_id: "qwen-plus",
     name: "Qwen Plus",
@@ -38,9 +56,10 @@ const DEFAULT_MODEL_CATALOG = [
     provider: "alibaba",
     region: "cn",
     hub_provider: "bgssai-tokenhub-cn",
+    billing_multiplier: 1.0,
     capabilities: ["text", "copywriting", "layer_layout", "inpainting", "layer_generation"],
     max_tokens: 2048,
-    is_default: true,
+    is_default: false,
   },
   {
     id: "deepseek-v3",
@@ -50,6 +69,7 @@ const DEFAULT_MODEL_CATALOG = [
     provider: "deepseek",
     region: "cn",
     hub_provider: "bgssai-tokenhub-cn",
+    billing_multiplier: 1.0,
     capabilities: ["text", "copywriting", "layer_layout", "inpainting", "layer_generation"],
     max_tokens: 2048,
     is_default: false,
@@ -62,6 +82,7 @@ const DEFAULT_MODEL_CATALOG = [
     provider: "zhipu",
     region: "cn",
     hub_provider: "bgssai-tokenhub-cn",
+    billing_multiplier: 1.5,
     capabilities: ["text", "copywriting", "layer_layout", "inpainting", "layer_generation"],
     max_tokens: 2048,
     is_default: false,
@@ -74,6 +95,7 @@ const DEFAULT_MODEL_CATALOG = [
     provider: "volcengine",
     region: "cn",
     hub_provider: "bgssai-tokenhub-cn",
+    billing_multiplier: 1.0,
     capabilities: ["text", "copywriting", "layer_layout", "inpainting", "layer_generation"],
     max_tokens: 2048,
     is_default: false,
@@ -86,14 +108,14 @@ export function resolveTokenhubOrigin(region = "cn", config = {}) {
   const normalizedRegion = String(region ?? "cn").trim().toLowerCase() || "cn";
   if (normalizedRegion !== "cn") {
     throw Object.assign(
-      new Error("仅允许使用中国大陆模型服务（bgssai-tokenhub-cn），拒绝非 cn 区域路由"),
+      new Error("仅允许使用中国大陆受控模型服务（CN），拒绝非 cn 区域路由"),
       { status: 400, code: "region_not_allowed" },
     );
   }
   const candidate = config.hubCnOrigin ?? config.hubOrigins?.cn ?? config.hubOrigin ?? null;
   if (typeof candidate === "string" && candidate.includes("api.tokenhub.bgssai.com")) {
     throw Object.assign(
-      new Error("仅允许使用中国大陆模型服务（bgssai-tokenhub-cn），拒绝非 cn 区域路由"),
+      new Error("仅允许使用中国大陆受控模型服务（CN），拒绝非 cn 区域路由"),
       { status: 400, code: "region_not_allowed" },
     );
   }
@@ -151,6 +173,7 @@ const fail = (status, message) =>
 
 function scrubMessage(message, secrets = []) {
   let text = String(message ?? "请求无效或存储失败");
+  text = text.replace(/bgssai-tokenhub(?:-cn|-global)?/gi, "AI 模型服务");
   text = text.replace(/tokenhub/gi, "AI 模型服务");
   text = text.replace(/https?:\/\/[^\s"'<>]+/gi, "[受控节点]");
   for (const secret of secrets) {
@@ -253,6 +276,13 @@ export function createService(config, transport = fetch) {
     packages: config.packages,
     paymentCallbackSecret: config.paymentCallbackSecret,
   });
+  const centralQuota = createCentralQuotaBridge({
+    issuer,
+    productCode: PRODUCT_CODE,
+    clientId: config.clientId,
+    secret: config.centralQuotaSecret ?? process.env.CHAT_CENTRAL_QUOTA_SECRET ?? "",
+    transport,
+  });
   const owner = (session) => receipts.owner(issuer, session.sub);
   const sessions = new Map(),
     pending = new Map(),
@@ -325,6 +355,10 @@ export function createService(config, transport = fetch) {
       provider: String(item.provider ?? "bgssai"),
       region: "cn",
       hub_provider: "bgssai-tokenhub-cn",
+      billing_multiplier: resolveModelMultiplier(
+        item.model_id ?? item.id,
+        item.billing_multiplier,
+      ),
       supported_multipliers: [0.5, 1.0, 1.5],
       capabilities: Array.isArray(item.capabilities)
         ? item.capabilities
@@ -1241,7 +1275,11 @@ export function createService(config, transport = fetch) {
       const url = new URL(req.url, publicOrigin);
       const route = `${req.method} ${url.pathname}`;
 
-      if (route === "GET /api/download/bot" || route === "GET /api/bot/download") {
+      if (
+        route === "GET /api/download/bot" ||
+        route === "GET /api/bot/download" ||
+        route === "GET /api/bot"
+      ) {
         const packages = [
           {
             platform: "windows",
@@ -1249,7 +1287,7 @@ export function createService(config, transport = fetch) {
             architecture: "x64",
             version: "0.2.0",
             file_name: "bgssai-bot-setup-x64.exe",
-            url: "https://www.bgssai-chat.cn/downloads/bgssai-bot-setup-x64.exe",
+            url: "https://chat.bgssai.cn/downloads/bgssai-bot-setup-x64.exe",
           },
           {
             platform: "linux",
@@ -1257,7 +1295,7 @@ export function createService(config, transport = fetch) {
             architecture: "x86_64",
             version: "0.2.0",
             file_name: "bgssai-bot-linux-x86_64.tar.gz",
-            url: "https://www.bgssai-chat.cn/downloads/bgssai-bot-linux-x86_64.tar.gz",
+            url: "https://chat.bgssai.cn/downloads/bgssai-bot-linux-x86_64.tar.gz",
           },
         ];
         send(200, {
@@ -1265,6 +1303,8 @@ export function createService(config, transport = fetch) {
           code: "0",
           success: true,
           product_code: PRODUCT_CODE,
+          chat_origin: "https://chat.bgssai.cn",
+          download_url: "https://chat.bgssai.cn/download/bot",
           platforms: ["windows", "linux"],
           packages,
           result: packages,
@@ -1906,14 +1946,59 @@ export function createService(config, transport = fetch) {
           }
           const catalog = catalogs.has(hub) ? await catalogs.get(hub) : [];
           const price = Array.isArray(catalog) ? catalog.find((item) => item.id === model.model_id) ?? {} : {};
-          return { ...model, hub,
-            ...Object.fromEntries(modelFields.map((key) => [key, price[key] ?? null])) };
+          const mergedFields = Object.fromEntries(
+            modelFields.map((key) => [
+              key,
+              price[key] ?? (key === "billing_multiplier" ? model.billing_multiplier ?? null : null),
+            ]),
+          );
+          return { ...model, hub: "cn", ...mergedFields };
         }));
-        send(200, { product_code: PRODUCT_CODE, default_model: defaultModel, models: enriched, data: enriched });
+        send(200, {
+          product_code: PRODUCT_CODE,
+          default_model: defaultModel,
+          supported_multipliers: ALLOWED_MULTIPLIERS,
+          models: enriched,
+          data: enriched,
+        });
         return;
       }
       if (route === "GET /api/ai/usage") {
-        send(200, { data: await receipts.list(owner(session)) });
+        const records = await receipts.list(owner(session));
+        send(200, {
+          supported_multipliers: ALLOWED_MULTIPLIERS,
+          data: records.map((item) => ({
+            ...item,
+            hub: "cn",
+            billing_multiplier:
+              item.billing_multiplier ?? resolveModelMultiplier(item.model),
+          })),
+        });
+        return;
+      }
+      if (route === "GET /api/quota") {
+        const accountId = await resolveAccountId(session);
+        const localBalance = accountId ? await billing.getBalance(accountId) : null;
+        const precheck = await centralQuota.checkQuota({
+          userId: session.sub,
+          modelId: centralQuota.defaultModelId,
+          multiplier: centralQuota.defaultMultiplier,
+          estimatedRawTokens: 1,
+        });
+        send(200, {
+          ok: true,
+          product_code: PRODUCT_CODE,
+          chat_issuer: issuer,
+          central_ledger_schema: centralQuota.schema,
+          central_quota_active: centralQuota.isActive(),
+          default_model: centralQuota.defaultModelId,
+          default_multiplier: centralQuota.defaultMultiplier,
+          supported_multipliers: ALLOWED_MULTIPLIERS,
+          remaining_tokens:
+            precheck.remaining_tokens ?? localBalance?.remaining_tokens ?? 0,
+          plan_code: precheck.plan_code ?? localBalance?.package_id ?? null,
+          unit: "token",
+        });
         return;
       }
 
@@ -2540,8 +2625,19 @@ export function createService(config, transport = fetch) {
         if (typeof request_id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(request_id))
           throw fail(400, "请求 ID 无效");
         res.setHeader("X-Request-Id", request_id);
+        const appliedMultiplier = resolveModelMultiplier(
+          selectedModel.model_id,
+          selectedModel.billing_multiplier,
+        );
+        await centralQuota.checkQuota({
+          userId: session.sub,
+          modelId: selectedModel.model_id,
+          multiplier: appliedMultiplier,
+          estimatedRawTokens: Math.max(64, Math.ceil(prompt.length / 2) + 256),
+          requestId: request_id,
+        });
         const record = await receipts.begin(owner(session), request_id, targetOrigin, selectedModel.model_id, prompt);
-        let response, text, billing;
+        let response, text, billingReceipt, promptTokens = 0, completionTokens = 0, rawTokens = 0;
         try {
           response = await transport(`${targetOrigin}/v1/chat/completions`, {
             method: "POST",
@@ -2567,11 +2663,24 @@ export function createService(config, transport = fetch) {
           text = completion.choices?.[0]?.message?.content;
           if (typeof text !== "string" || text.length > 10000)
             throw fail(502, "AI 模型服务返回无效内容");
+          promptTokens = Number(completion.usage?.prompt_tokens ?? Math.max(1, Math.ceil(prompt.length / 3)));
+          completionTokens = Number(completion.usage?.completion_tokens ?? Math.max(1, Math.ceil(text.length / 3)));
+          rawTokens = Number(completion.usage?.total_tokens ?? promptTokens + completionTokens);
         } catch {
           throw fail(502, "AI 模型服务请求失败，请稍后重试");
         } finally {
-          billing = await receipts.refresh(record);
+          billingReceipt = await receipts.refresh(record);
         }
+        const centralReport = await centralQuota.reportUsage({
+          userId: session.sub,
+          requestId: request_id,
+          modelId: selectedModel.model_id,
+          multiplier: billingReceipt?.billing_multiplier ?? appliedMultiplier,
+          promptTokens,
+          completionTokens,
+          rawTokens: billingReceipt?.raw_tokens ?? rawTokens,
+          usageKind: "ai_text",
+        });
         if (!session.grants.ai || !sessions.has(token))
           throw fail(403, "AI 授权已撤销");
         send(200, {
@@ -2579,9 +2688,12 @@ export function createService(config, transport = fetch) {
           model: selectedModel.model_id,
           model_id: selectedModel.model_id,
           region: selectedModel.region,
+          multiplier: billingReceipt?.billing_multiplier ?? appliedMultiplier,
+          supported_multipliers: ALLOWED_MULTIPLIERS,
           product_code: PRODUCT_CODE,
           request_id,
-          billing,
+          billing: { ...billingReceipt, hub: "cn" },
+          central_quota: centralReport,
         });
         return;
       }
@@ -2624,6 +2736,17 @@ export function createService(config, transport = fetch) {
           throw fail(400, "请求 ID 无效");
         }
         res.setHeader("X-Request-Id", request_id);
+        const appliedMultiplier = resolveModelMultiplier(
+          selectedModel.model_id,
+          selectedModel.billing_multiplier,
+        );
+        await centralQuota.checkQuota({
+          userId: session.sub,
+          modelId: selectedModel.model_id,
+          multiplier: appliedMultiplier,
+          estimatedRawTokens: 1024,
+          requestId: request_id,
+        });
         const record = await receipts.begin(
           owner(session),
           request_id,
@@ -2703,6 +2826,16 @@ export function createService(config, transport = fetch) {
         } finally {
           billingResult = await receipts.refresh(record);
         }
+        const centralReport = await centralQuota.reportUsage({
+          userId: session.sub,
+          requestId: request_id,
+          modelId: selectedModel.model_id,
+          multiplier: billingResult?.billing_multiplier ?? appliedMultiplier,
+          promptTokens: 512,
+          completionTokens: 512,
+          rawTokens: billingResult?.raw_tokens ?? 1024,
+          usageKind: scope === "selection" ? "inpainting" : "layer_generation",
+        });
         if (!session.grants.ai || !sessions.has(token)) throw fail(403, "AI 授权已撤销");
         send(200, {
           ok: true,
@@ -2717,10 +2850,12 @@ export function createService(config, transport = fetch) {
           model: selectedModel.model_id,
           model_id: selectedModel.model_id,
           region: selectedModel.region,
-          hub_provider: "bgssai-tokenhub-cn",
+          multiplier: billingResult?.billing_multiplier ?? appliedMultiplier,
+          supported_multipliers: ALLOWED_MULTIPLIERS,
           product_code: PRODUCT_CODE,
           request_id,
-          billing: billingResult,
+          billing: { ...billingResult, hub: "cn" },
+          central_quota: centralReport,
           note: "结果仅供预览；客户端确认后才可应用到图层，且须校验文档版本。",
         });
         return;

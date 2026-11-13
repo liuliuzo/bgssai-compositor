@@ -557,3 +557,126 @@ test("Password auth, AI model selection & hub allowlist, Support bridge HMAC ide
     await fs.rm(directory, { recursive: true, force: true });
   }
 });
+
+test("Central quota check/report with https://chat.bgssai.cn, bot download domain, and TokenHub UI masking", async () => {
+  const directory = await fs.mkdtemp(
+    path.join(os.tmpdir(), "compositor-central-quota-"),
+  );
+  let allowCentral = true;
+  const checkCalls: any[] = [];
+  const reportCalls: any[] = [];
+  const transport = async (url: string, options: any = {}) => {
+    if (url === "https://chat.bgssai.cn/api/internal/quota/check") {
+      checkCalls.push(JSON.parse(options.body));
+      return Response.json({
+        allowed: allowCentral,
+        remaining_tokens: allowCentral ? 99_500_000 : 0,
+        plan_code: "pro_monthly",
+      });
+    }
+    if (url === "https://chat.bgssai.cn/api/internal/quota/report") {
+      reportCalls.push(JSON.parse(options.body));
+      return Response.json({
+        ok: true,
+        ledger_id: "led_central_001",
+        remaining_tokens: 99_499_850,
+      });
+    }
+    if (url.includes("/v1/usage/")) {
+      return Response.json({
+        request_id: url.split("/").at(-1),
+        billing_status: "settled",
+        raw_tokens: 100,
+        billed_tokens: 150,
+        billing_multiplier: 1.5,
+        currency: "CNY",
+      });
+    }
+    return Response.json({
+      choices: [{ message: { content: "居中对齐主标题图层" } }],
+      usage: { prompt_tokens: 40, completion_tokens: 60, total_tokens: 100 },
+    });
+  };
+  const server = createService(
+    {
+      chatIssuer: "https://chat.bgssai.cn",
+      publicOrigin: "https://compositor.example",
+      clientId: "compositor",
+      dataDirectory: directory,
+      hubOrigin: "https://hub.example",
+      hubKey: "secret-hub-key",
+      centralQuotaSecret: "central-secret-xyz",
+    },
+    transport,
+  );
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const req = async (route: string, method = "GET", body?: unknown, token?: string) =>
+    fetch(`${base}${route}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+
+  try {
+    const botRes = await (await req("/api/download/bot")).json();
+    assert.equal(botRes.chat_origin, "https://chat.bgssai.cn");
+    assert.ok(
+      botRes.packages.every((p: any) =>
+        String(p.url).startsWith("https://chat.bgssai.cn/downloads/"),
+      ),
+    );
+
+    const reg = await (
+      await req("/api/auth/register", "POST", {
+        username: "quota_designer",
+        password: "Password#12345",
+      })
+    ).json();
+    const token = reg.token;
+    await req("/api/grants", "PUT", { sync: true, ai: true, bot: false }, token);
+
+    const quotaSnap = await (await req("/api/quota", "GET", undefined, token)).json();
+    assert.equal(quotaSnap.central_quota_active, true);
+    assert.equal(quotaSnap.default_model, "bgssai-chat");
+    assert.equal(quotaSnap.default_multiplier, 0.5);
+    assert.deepEqual(quotaSnap.supported_multipliers, [0.5, 1, 1.5]);
+
+    const okAi = await req(
+      "/api/ai/text",
+      "POST",
+      { prompt: "生成封面主视觉文案", model: "glm-4-plus" },
+      token,
+    );
+    assert.equal(okAi.status, 200);
+    const okAiBody = await okAi.json();
+    assert.equal(okAiBody.multiplier, 1.5);
+    assert.equal(okAiBody.central_quota.reported, true);
+    assert.equal(okAiBody.central_quota.usage_tokens, 150);
+    assert.equal(checkCalls.length >= 2, true);
+    assert.equal(reportCalls.length, 1);
+    assert.equal(reportCalls[0].schema, "bgssai_chat");
+
+    const usageBody = await (await req("/api/ai/usage", "GET", undefined, token)).json();
+    assert.equal(usageBody.data[0].hub, "cn");
+    assert.ok(!JSON.stringify(usageBody).toLowerCase().includes("tokenhub"));
+
+    const badRegion = await (await req("/api/ai/models?region=us", "GET", undefined, token)).json();
+    assert.ok(!String(badRegion.error).toLowerCase().includes("tokenhub"));
+
+    allowCentral = false;
+    const blocked = await req(
+      "/api/ai/text",
+      "POST",
+      { prompt: "超额调用拦截验证", model: "bgssai-chat" },
+      token,
+    );
+    assert.equal(blocked.status, 402);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});

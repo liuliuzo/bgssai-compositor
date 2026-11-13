@@ -11,6 +11,7 @@ import {
   priceLabel,
   usageLabel,
   tokenSpanProps,
+  formatMultiplier,
   type ModelPrice,
   type UsageReceipt,
 } from "./usage";
@@ -595,7 +596,7 @@ export function Connections({
               </p>) : <p>模型价格待确认</p>}
             </div>}
             <label className="form-label">
-              AI 模型选择（区域路由 bgssai-tokenhub-cn，支持 0.5x / 1.0x / 1.5x 倍率核对）
+              AI 模型选择（同区受控路由，支持 0.5x / 1x / 1.5x 额度倍率规则）
               <select
                 aria-label="AI 模型选择"
                 value={selectedModel}
@@ -644,13 +645,13 @@ export function Connections({
               {usage.map((value) => {
                 const billed = tokenSpanProps(value.billed_tokens);
                 return (
-                  <p key={`${value.hub}/${value.request_id}`}>
+                  <p key={value.request_id}>
                     {value.model} · {usageLabel(value)}
                     <br />
                     实扣展示：{" "}
                     <span title={billed.title}>{billed.children}</span>
                     <br />
-                    {value.hub} / {value.request_id}
+                    倍率规则：{typeof value.billing_multiplier === "number" && value.billing_multiplier > 0 ? formatMultiplier(value.billing_multiplier) : "0.5x / 1x / 1.5x"} · 请求单号：{value.request_id}
                   </p>
                 );
               })}

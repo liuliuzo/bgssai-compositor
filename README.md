@@ -1,6 +1,6 @@
 # BGSSAI Compositor
 
-一款离线、以图层为核心的 **Windows PC 桌面**图像编辑软件。产品愿景只交付桌面，主平台是 Windows 10 / Windows 11 x64。没有网页版，**不做 Web 部署**。`0.2.0` 的编辑器是 Electron 窗口里的 React / Canvas 引擎。`clients/ios` 与 `clients/android` 是实验性工程，**不是产品愿景**。首版参考 [robbietilton/Compositor](https://github.com/robbietilton/Compositor) 的合成工作流，独立实现。
+一款离线优先、以图层为核心的 **PC 桌面图像编辑软件**（PS 级非破坏性图层合成工作台）。参考 [robbietilton/Compositor](https://github.com/robbietilton/Compositor) 的合成工作流独立实现。按 **2026-11-13** 产品线校准：当前主交付平台为 **Windows 10 / Windows 11 x64 PC 桌面端**，**没有 Web 端部署**，同时纳入 BGSSAI 五端客户端矩阵（`Windows / macOS / Linux / iOS / Android` 客户端路线图）。`0.2.0` 桌面编辑器基于 Electron + React / Canvas 引擎构建，并支持 `bgssai_shell=1` 宿主嵌入壳与应用内 `/download/bot` 入口。
 
 产品仓与 GitHub 仓库名均为 **bgssai-compositor**。范围以 [PRODUCT_VISION.md](PRODUCT_VISION.md) 为准。
 

@@ -165,6 +165,13 @@ svg {
 .header-end > button.primary {
   border-color: var(--accent);
 }
+.app.app-shell-embedded .topbar {
+  height: 44px;
+  padding: 0 12px;
+}
+.app.app-shell-embedded .topbar .brand {
+  display: none;
+}
 .divider {
   width: 1px;
   height: 18px;
