@@ -5,8 +5,8 @@
     "index": "docs/demo-static/index.html",
     "page_flow": "docs/demo-static/PAGE-FLOW.html"
   },
-  "prototype_bundle_digest": "e22d71f00914cc7a5bc1c28334525bdb2d75cfe73e6bef02dcf5eec0ff7b9d17",
-  "code_contract_digest": "0d9d25542e7d838651d157c6727902588343e2c83e117a1b6fd660b63681c38b",
+  "prototype_bundle_digest": "05d0987e730c53a9f57b99b824f3b859c0fb7998dcbcb16fba7c3093d8ae7501",
+  "code_contract_digest": "b720a1923089f154353cd0ada409348badec1c4a2b35c65b5496745b2e9d0be0",
   "api_endpoints": [
     "/api/auth/oauth",
     "/api/bot",
@@ -23,7 +23,7 @@
     },
     {
       "path": "src/App.tsx",
-      "sha256": "32b691fca6484d37279ef8d0ff51c09ca76e630c1f9e90df67d7f580bdfe6f00"
+      "sha256": "4b8a8c08c7125a61d96b4464143ba2f08f81ab29cc7f98cd1c80b3837f2348fa"
     }
   ],
   "pages": [
@@ -44,7 +44,7 @@
     },
     {
       "path": "docs/demo-static/index.html",
-      "sha256": "37e1a3ce177a9c74f5fd645e2fb252877219181053b616d0b12fc8e1dbada59d",
+      "sha256": "3bc8678958a41c393ad5fb29024d5d5cd2108f07126c084458e67e4afcc18baf",
       "surface": "index",
       "bound_code_files": [
         "electron/main.cjs",
@@ -59,7 +59,7 @@
     },
     {
       "path": "docs/demo-static/model-price-receipts.html",
-      "sha256": "8f7ff9c42ae918cd509983230d056886b479b4deb2de27b3a0859e3acced2780",
+      "sha256": "f49afc7af050953712727a8dfbb741e2343e8fd43e932550f53b80b81927b31f",
       "surface": "user",
       "bound_code_files": [
         "electron/main.cjs",
@@ -74,7 +74,7 @@
     },
     {
       "path": "docs/demo-static/recovery-startup.html",
-      "sha256": "ce8b16d74acc5c15cb21e695f2022a85bf1fd20e7193286be3e17a3f32d118ad",
+      "sha256": "5febfcc03828356ffac300f0528e53ad376250469a46dc44fc28803d6fbdbb57",
       "surface": "user",
       "bound_code_files": [
         "electron/main.cjs",

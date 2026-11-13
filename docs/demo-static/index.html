@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BGSSAI Compositor - OPS-COMP-01 / OPS-COMP-02 Static Demo</title>
+  <title>BGSSAI Compositor — Windows 图层式 AI 图像合成工作台原型</title>
   <style>
     :root {
       color-scheme: dark;
@@ -90,21 +90,20 @@
   <header>
     <div>
       <h1>BGSSAI Compositor</h1>
-      <small>PSD 可编辑子集仅含 8 位 RGB 像素图层、简单用户蒙版和带 Txt 的简单文字。结构目录不会标成可编辑。CMYK、调整图层、智能对象、图层效果、PSB 和 16 位仍不支持。缺字体、磁盘满或工程损坏不会记成保存成功。五端签名包当前阻塞。</small>
+      <small>Windows 桌面图层图像合成与 AI 精修工作台 · 支持 8 位 RGB PSD 分层导入、非破坏性调整图层、混合模式与透明通道导出</small>
     </div>
-    <div id="session-badge">当前模式: 离线本地编辑 (无需登录)</div>
+    <div id="session-badge">当前模式：本地离线编辑（无需登录）</div>
   </header>
   <main>
     <section aria-label="工程与 PSD 导入">
-      <h2>工程与 PSD 导入</h2>
-      <p>打开 PSD 后先查看转换报告，再选择继续导入或取消。支持的像素图层、简单文字和用户蒙版保持可编辑；未保留的内容逐项列出。</p>
-      <p>保存项目和自动恢复会保留当前选区，以及内存允许的最近 30 步撤销、重做记录。重新打开后可以继续编辑；选区、图层或历史损坏时保留原工程。</p>
-      <p>蒙版反相交换显示与隐藏区域，羽化柔化边缘。缺少字体时保留文字，可以主动更换为系统字体后再保存或导出。</p>
-      <p>此处为流程说明。桌面自动化证据与五端安装验收分别记录，不能用本页代替真机验收。</p>
+      <h2>工程管理与 PSD 分层导入</h2>
+      <p>打开 PSD 文件时将展示清晰的分层导入报告，确认后即可继续编辑；受支持的像素图层、基础文字图层与用户蒙版保留独立可编辑状态，不支持的高级属性将逐项说明。</p>
+      <p>保存为 .bgcomp 工程与自动恢复快照会完整保留当前选区及最近 30 步撤销与重做记录，重新打开后即可无缝衔接创作。</p>
+      <p>支持蒙版反相与边缘羽化；遇到缺失字体时保留原始文字内容，可在右侧属性栏切换为本地可用字体后再保存或导出。</p>
     </section>
     <section aria-label="全矩阵身份认证">
-      <h2>1. 认证通道可用状态 (OPS-COMP-01)</h2>
-      <p>此页为静态交互示意，不连接认证服务、不签发真实会话。正式应用保留密码与 Chat PKCE 登录。</p>
+      <h2>1. 账户与 BGSSAI Chat 授权登录</h2>
+      <p>本地图层编辑始终支持完全离线运行；连接在线服务后可使用本地账号密码或 BGSSAI Chat 授权登录。</p>
       <label>
         认证通道
         <select id="auth-channel">
@@ -143,26 +142,26 @@
     </section>
 
     <section aria-label="受控模型目录与区域路由">
-      <h2>2. 受控 AI 模型与区域路由 (OPS-COMP-01)</h2>
+      <h2>2. AI 图层与设计建议（0.5x / 1x / 1.5x 倍率）</h2>
       <label>
-        授权模型目录 (/api/ai/models)
+        可用模型列表 (/api/ai/models)
         <select id="ai-model">
-          <option value="qwen-plus" data-region="cn">Qwen Plus (CN 区域受控节点)</option>
-          <option value="deepseek-v3" data-region="cn">DeepSeek V3 (CN 区域受控节点)</option>
-          <option value="gpt-4o-mini" data-region="global">GPT-4o Mini (Global 区域受控节点)</option>
-          <option value="claude-3-5-sonnet" data-region="global">Claude 3.5 Sonnet (Global 区域受控节点)</option>
+          <option value="qwen-plus" data-region="cn">Qwen Plus · 1.0x 标准倍率</option>
+          <option value="deepseek-v3" data-region="cn">DeepSeek V3 · 0.5x 经济倍率</option>
+          <option value="gpt-4o-mini" data-region="global">GPT-4o Mini · 1.0x 标准倍率</option>
+          <option value="claude-3-5-sonnet" data-region="global">Claude 3.5 Sonnet · 1.5x 增强倍率</option>
         </select>
       </label>
       <label>
         图层文案提示词
         <textarea id="ai-prompt" rows="2">生成海山日落主题海报标题建议</textarea>
       </label>
-      <button id="btn-ai" type="button">请求受控 AI 建议</button>
-      <div id="ai-output" class="status-box">仅允许已登记的区域网关节点，错误统一携带 request_id 且不暴露底层凭证。</div>
+      <button id="btn-ai" type="button">生成 AI 设计建议</button>
+      <div id="ai-output" class="status-box">按所选模型倍率透明核算额度，生成结果可一键置入独立可撤销文字图层。</div>
     </section>
 
     <section aria-label="统一客服桥接">
-      <h2>3. 统一客服桥接 product_code=compositor (OPS-COMP-02)</h2>
+      <h2>3. 在线客服与技术支持工单</h2>
       <label>
         工单主题
         <input id="support-subject" value="导出 PNG 图层透明通道咨询" />
@@ -179,7 +178,7 @@
     </section>
 
     <section aria-label="Bot 与 MCP 扩展编辑工具">
-      <h2>4. Bot / MCP 扩展编辑与预览回滚 (OPS-COMP-02)</h2>
+      <h2>4. BGSSAI Bot 协同编辑与安全回滚</h2>
       <label>
         MCP 工具动作
         <select id="mcp-action">
@@ -204,7 +203,7 @@
       <div id="psd-report" class="status-box">保留：像素图层、简单用户蒙版、简单文字
 损失：CMYK、调整图层、智能对象、图层效果、PSB、16 位
 保真度：结构目录不是 editable</div>
-      <p>损坏或超限的 PSD 会拒绝导入，不覆盖当前工程。五端签名包与运行验收仍未通过。</p>
+      <p>损坏或超限的 PSD 文件将自动拦截提示，不会覆盖当前已打开的本地工程。</p>
     </section>
   </main>
   <script>

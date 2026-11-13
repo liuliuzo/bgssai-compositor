@@ -138,7 +138,8 @@ test("bgssai-tokenhub-cn multiplier transparency (0.5x / 1.0x / 1.5x) and K/M/B 
   assert.equal(summary.billedQuota.compact, "418.9M");
   assert.equal(summary.billedQuota.exact, "418,900,000");
   assert.equal(summary.billedQuota.rawInteger, 418_900_000);
-  assert.match(summary.summaryText, /bgssai-tokenhub-cn.*AI 局部重绘\/修补.*1\.5x.*418\.9M.*418,900,000/);
+  assert.match(summary.summaryText, /AI 模型服务（境内节点）.*AI 局部重绘\/修补.*1\.5x.*418\.9M.*418,900,000/);
+  assert.doesNotMatch(summary.summaryText, /tokenhub/i);
 });
 
 test("regional receipts recover only from a still configured origin with the original key", async () => fixture(async (directory) => {

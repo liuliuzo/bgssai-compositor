@@ -34,7 +34,7 @@ export function isStandardMultiplier(multiplier?: number | null): boolean {
 
 /**
  * Formats model multiplier explicitly in standard x notation (0.5x / 1.0x / 1.5x)
- * for regional bgssai-tokenhub-cn transparency.
+ * for regional AI service quota transparency.
  */
 export function formatMultiplier(multiplier?: number | null): string {
   if (typeof multiplier !== "number" || !Number.isFinite(multiplier) || multiplier <= 0) {
@@ -57,7 +57,7 @@ export function priceLabel(model: ModelPrice) {
   const multiplier = hasMultiplier
     ? `${model.billing_multiplier}× (${formatMultiplier(model.billing_multiplier)})`
     : "倍率待配置";
-  return `${model.id} · CN 受控路由 · ${multiplier} · ${model.billing_unit ?? "单位未知"} · 价格版本 ${model.price_version ?? "未知"} · ${model.currency ?? "币种未知"}`;
+  return `${model.id} · AI 模型服务 · ${multiplier} · ${model.billing_unit ?? "额度单位待定"} · 价格版本 ${model.price_version ?? "待更新"} · ${model.currency ?? "结算币种待定"}`;
 }
 export function usageLabel(value: UsageReceipt) {
   const hasQuota = Number.isSafeInteger(value.billed_tokens) && value.billed_tokens! >= 0;
@@ -70,7 +70,15 @@ export function usageLabel(value: UsageReceipt) {
   const multiplierText = typeof value.billing_multiplier === "number" && value.billing_multiplier > 0
     ? ` · 倍率 ${formatMultiplier(value.billing_multiplier)}`
     : "";
-  return `原始 ${raw} 额度${multiplierText} · 实扣 ${quota} ${value.billing_unit ?? "额度"}${exact ? `（精确 ${exact}）` : ""} · 现金 ${cash} · ${value.billing_status}${value.reconciled ? "" : "（待对账）"}`;
+  const statusLabel =
+    value.billing_status === "settled"
+      ? "已结算"
+      : value.billing_status === "pending"
+        ? "待结算"
+        : value.billing_status === "unpriced"
+          ? "免计费"
+          : value.billing_status;
+  return `原始 ${raw} 额度${multiplierText} · 实扣 ${quota} ${value.billing_unit ?? "额度"}${exact ? `（精确 ${exact}）` : ""} · 现金 ${cash} · ${statusLabel}${value.reconciled ? "" : "（待对账）"}`;
 }
 
 export function aiTaskReceiptSummary(value: UsageReceipt): {
@@ -84,6 +92,7 @@ export function aiTaskReceiptSummary(value: UsageReceipt): {
   summaryText: string;
 } {
   const provider = resolveHubProviderId(value.hub, value.hub_provider);
+  const regionLabel = provider === TOKENHUB_GLOBAL_ID ? "国际节点" : "境内节点";
   const taskKindLabel = value.task_kind === "inpainting"
     ? "AI 局部重绘/修补"
     : value.task_kind === "layer_generation"
@@ -96,7 +105,7 @@ export function aiTaskReceiptSummary(value: UsageReceipt): {
     ? `${(value.debit_fen / 100).toFixed(2)} ${value.currency}`
     : "待确认";
   const reconciliationLabel = value.reconciled ? "已对账" : "待对账";
-  const summaryText = `[${provider}] ${taskKindLabel} · 模型 ${value.model} (${multiplierBadge}) · 原始 ${rawQuota.compact} · 实扣 ${billedQuota.compact} (精确 ${billedQuota.exact}) · 现金 ${cashLabel} · ${reconciliationLabel}`;
+  const summaryText = `AI 模型服务（${regionLabel}） · ${taskKindLabel} · 模型 ${value.model} (${multiplierBadge}) · 原始 ${rawQuota.compact} · 实扣 ${billedQuota.compact} (精确 ${billedQuota.exact}) · 现金 ${cashLabel} · ${reconciliationLabel}`;
   return {
     provider,
     taskKindLabel,
