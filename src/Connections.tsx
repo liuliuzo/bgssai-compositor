@@ -39,6 +39,16 @@ let session: Session | null = null;
 let cloudETag: string | null = null;
 let pending: string | null = null;
 
+const CHANNEL_LABELS: Record<string, string> = {
+  chat: "Chat 授权登录",
+  local: "本地账号密码",
+  verification_code: "手机/邮箱验证码",
+  wechat: "微信登录",
+  alipay: "支付宝登录",
+  douyin: "抖音登录",
+  baidu: "百度登录",
+};
+
 export function getActiveSession(): Session | null {
   return session;
 }
@@ -48,7 +58,6 @@ export function Connections({
   adopt,
   close,
   message,
-  openSupport,
 }: {
   editor: Editor;
   adopt: (content: string) => Promise<boolean>;
@@ -62,11 +71,11 @@ export function Connections({
   const [busy, setBusy] = useState(false);
   const [channels, setChannels] = useState<string[]>(["local", "chat"]);
   const [unavailable, setUnavailable] = useState<Array<{ channel: string; reason: string }>>([
-    { channel: "verification_code", reason: "真实短信或邮件通道尚未配置，暂未启用" },
-    { channel: "wechat", reason: "真实发送或第三方身份校验尚未接入，暂未启用" },
-    { channel: "alipay", reason: "真实发送或第三方身份校验尚未接入，暂未启用" },
-    { channel: "douyin", reason: "真实发送或第三方身份校验尚未接入，暂未启用" },
-    { channel: "baidu", reason: "真实发送或第三方身份校验尚未接入，暂未启用" },
+    { channel: "verification_code", reason: "短信与邮件验证码服务暂未开启" },
+    { channel: "wechat", reason: "第三方快捷登录暂未开启" },
+    { channel: "alipay", reason: "第三方快捷登录暂未开启" },
+    { channel: "douyin", reason: "第三方快捷登录暂未开启" },
+    { channel: "baidu", reason: "第三方快捷登录暂未开启" },
   ]);
   const [authChannel, setAuthChannel] = useState<
     | "chat"
@@ -139,7 +148,7 @@ export function Connections({
           ...nextUnavailable,
           ...defaults.map((channel) => ({
             channel,
-            reason: "真实发送或第三方身份校验尚未接入，暂未启用",
+            reason: "该登录方式暂未开启",
           })),
         ]);
       })
@@ -263,7 +272,7 @@ export function Connections({
             关闭
           </button>
         </div>
-        <p>本地编辑和自动恢复始终可离线使用。在线功能由你逐项开启。</p>
+        <p>本地图层编辑、选区蒙版与自动恢复全程支持离线使用；云端同步与 AI 辅助可按需独立开启。</p>
         {!current ? (
           <>
             <label className="form-label">
@@ -276,7 +285,7 @@ export function Connections({
                   setAuthChannel(e.target.value as typeof authChannel)
                 }
               >
-                <option value="chat">Chat 授权登录 (PKCE)</option>
+                <option value="chat">BGSSAI Chat 授权登录</option>
                 <option value="local">本地账号密码登录 / 注册</option>
                 <option
                   value="verification_code"
@@ -284,19 +293,19 @@ export function Connections({
                 >
                   {channels.includes("verification_code")
                     ? "手机 / 邮箱验证码登录"
-                    : "未启用：手机 / 邮箱验证码登录"}
+                    : "暂未启用：手机 / 邮箱验证码登录"}
                 </option>
                 <option disabled={!channels.includes("wechat")} value="wechat">
-                  {channels.includes("wechat") ? "微信扫码登录 (wechat)" : "未启用：微信登录 (wechat)"}
+                  {channels.includes("wechat") ? "微信扫码登录" : "暂未启用：微信扫码登录"}
                 </option>
                 <option disabled={!channels.includes("alipay")} value="alipay">
-                  {channels.includes("alipay") ? "支付宝登录 (alipay)" : "未启用：支付宝登录 (alipay)"}
+                  {channels.includes("alipay") ? "支付宝快捷登录" : "暂未启用：支付宝快捷登录"}
                 </option>
                 <option disabled={!channels.includes("douyin")} value="douyin">
-                  {channels.includes("douyin") ? "抖音登录 (douyin)" : "未启用：抖音登录 (douyin)"}
+                  {channels.includes("douyin") ? "抖音账号登录" : "暂未启用：抖音账号登录"}
                 </option>
                 <option disabled={!channels.includes("baidu")} value="baidu">
-                  {channels.includes("baidu") ? "百度登录 (baidu)" : "未启用：百度登录 (baidu)"}
+                  {channels.includes("baidu") ? "百度账号登录" : "暂未启用：百度账号登录"}
                 </option>
               </select>
             </label>
@@ -445,8 +454,8 @@ export function Connections({
             )}
             <p role="status">
               {unavailable.length
-                ? `暂未启用：${unavailable.map((u) => u.channel).join("、")}。可用：${channels.join("、")}。`
-                : `可用登录方式：${channels.join("、")}。`}
+                ? `暂未启用：${unavailable.map((u) => CHANNEL_LABELS[u.channel] ?? u.channel).join("、")}。当前可用：${channels.map((c) => CHANNEL_LABELS[c] ?? c).join("、")}。`
+                : `当前可用登录方式：${channels.map((c) => CHANNEL_LABELS[c] ?? c).join("、")}。`}
             </p>
             <button
               className="primary"
@@ -468,7 +477,7 @@ export function Connections({
                 })
               }
             >
-              用 Chat 授权登录
+              使用 BGSSAI Chat 授权登录
             </button>
             {(waiting || pending) && (
               <button
@@ -501,9 +510,9 @@ export function Connections({
                 />
                 {
                   [
-                    "账户项目同步",
-                    "AI 模型服务建议",
-                    "Bot / MCP 项目操作与下载",
+                    "云端项目同步",
+                    "AI 图层与设计建议",
+                    "BGSSAI Bot 协同编辑与下载",
                   ][i]
                 }
               </label>
@@ -577,7 +586,7 @@ export function Connections({
             </div>
             {botToken && (
               <label className="form-label">
-                Bot / MCP 专用令牌（1 小时；关闭 Bot 权限立即撤销）
+                BGSSAI Bot 专用访问令牌（有效期 1 小时；关闭协同权限立即失效）
                 <input
                   readOnly
                   value={botToken}
@@ -586,8 +595,7 @@ export function Connections({
               </label>
             )}
             <p>
-              Bot / MCP
-              支持项目新建、列表、读取、资产导入导出、破坏性编辑预览确认和撤销回滚。撤销同步后云端项目会删除。
+              开启 Bot 协同后，可通过桌面智能体执行项目新建、读取、资产导入导出、破坏性编辑预览确认与历史回滚；关闭云端同步权限后将清除云端项目副本。
             </p>
             {current.grants.ai && <div aria-label="AI 模型价格">
               {models.length ? models.map((model) => <p key={model.id}>
@@ -596,7 +604,7 @@ export function Connections({
               </p>) : <p>模型价格待确认</p>}
             </div>}
             <label className="form-label">
-              AI 模型选择（同区受控路由，支持 0.5x / 1x / 1.5x 额度倍率规则）
+              AI 模型选择（支持 0.5x 经济 / 1x 标准 / 1.5x 增强倍率）
               <select
                 aria-label="AI 模型选择"
                 value={selectedModel}
@@ -608,13 +616,13 @@ export function Connections({
                     key={item.model_id ?? item.id}
                     value={item.model_id ?? item.id}
                   >
-                    {item.display_name} ({item.region}{typeof item.billing_multiplier === "number" && item.billing_multiplier > 0 ? ` · ${item.billing_multiplier}x` : ""})
+                    {item.display_name}{typeof item.billing_multiplier === "number" && item.billing_multiplier > 0 ? ` · ${formatMultiplier(item.billing_multiplier)}` : ""}
                   </option>
                 ))}
               </select>
             </label>
             <label className="form-label">
-              AI 建议（只发送输入文字与所选受控模型）
+              设计需求或图层文案描述（仅发送当前输入文本，不上传本地画布图像）
               <textarea
                 value={prompt}
                 maxLength={4000}
@@ -638,10 +646,10 @@ export function Connections({
                 })
               }
             >
-              获取 AI 模型服务建议
+              生成 AI 设计建议
             </button>
             <details>
-              <summary>用量与实扣（{usage.length} 条 · K/M/B 紧凑展示与精确整数可核对）</summary>
+              <summary>用量与结算明细（{usage.length} 条 · 悬停可查看精确整数）</summary>
               {usage.map((value) => {
                 const billed = tokenSpanProps(value.billed_tokens);
                 return (
@@ -705,7 +713,7 @@ export function Connections({
                           current.token,
                         );
                         message(
-                          `已创建订单 ${order.order.out_trade_no}（${pkg.name}）。额度仅在支付回调成功后入账，前端跳转不算入账。`,
+                          `已创建订单 ${order.order.out_trade_no}（${pkg.name}），支付确认后额度将自动到账。`,
                         );
                       })
                     }
@@ -719,7 +727,7 @@ export function Connections({
                 ))}
               </div>
               <details>
-                <summary>额度流水（接口为精确整数）</summary>
+                <summary>额度变动明细</summary>
                 {ledger.length ? (
                   ledger.map((entry) => (
                     <p key={entry.entry_id}>
@@ -749,7 +757,7 @@ export function Connections({
                       onClick={() =>
                         void operation(async () => {
                           if (!reauthToken) {
-                            throw new Error("请先完成敏感操作身份验证（发送并校验验证码，用途 reauth）");
+                            throw new Error("请先完成安全身份验证后再解绑登录方式");
                           }
                           await request(
                             "account/bindings",
@@ -780,9 +788,9 @@ export function Connections({
               ) : (
                 <p>暂无绑定记录</p>
               )}
-              <p>绑定/解绑需重新验证身份。最后一种登录方式不可解绑。</p>
+              <p>绑定或解绑登录方式需通过二次身份验证；当前唯一的登录方式不可解绑。</p>
               <label className="form-label">
-                重新验证令牌（reauth_token）
+                安全验证凭证
                 <input
                   aria-label="重新验证令牌"
                   value={reauthToken}
@@ -811,7 +819,7 @@ export function Connections({
                 onClick={() =>
                   void operation(async () => {
                     if (!reauthToken) {
-                      throw new Error("注销前须完成身份验证并填入 reauth_token");
+                      throw new Error("注销账号前请先完成安全身份验证并填写验证凭证");
                     }
                     await request(
                       "account/delete",
@@ -878,7 +886,7 @@ export function Connections({
                   })
                 }
               >
-                {["统一支持", "五端下载", "打开 Bot"][i]}
+                {["在线客服", "客户端下载", "获取 BGSSAI Bot"][i]}
               </button>
             ),
           )}

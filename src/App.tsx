@@ -411,13 +411,13 @@ function SupportModal({
         aria-label="客服与工单"
       >
         <div className="modal-heading">
-          <h2>在线客服会话与工单 (product_code=compositor)</h2>
+          <h2>在线客服与技术支持</h2>
           <button onClick={close} disabled={busy}>
             关闭
           </button>
         </div>
         {!active ? (
-          <p>请先在“账户与连接”中登录账户，以创建受隔离保护的客服会话与工单。</p>
+          <p>请先在“账户与连接”中登录账号，即可发起在线咨询或提交技术支持工单。</p>
         ) : (
           <>
             <label className="form-label">
@@ -562,15 +562,14 @@ function BotDownloadModal({
         aria-label="下载与接入 BGSSAI Bot"
       >
         <div className="modal-heading">
-          <h2>下载与托管 BGSSAI Bot (/download/bot)</h2>
+          <h2>下载与接入 BGSSAI Bot</h2>
           <button onClick={close}>关闭</button>
         </div>
         <p>
-          BGSSAI Bot 面向 OPC 创作者提供自动化图层批处理与 MCP 托管协同，固定使用公司自建模型并须通过{" "}
-          <code>https://chat.bgssai.cn</code> 用户侧账号授权登录。
+          安装 BGSSAI Bot 桌面客户端后，可通过自然语言对话授权智能体协助完成图层批处理、尺寸适配与格式导出，支持 Windows 与 Linux 环境。
         </p>
         <div className="help-note">
-          <strong>官方安装包（来自 https://chat.bgssai.cn）</strong>
+          <strong>官方桌面端安装包</strong>
           {packages.map((pkg) => (
             <p key={`${pkg.platform}-${pkg.arch}`}>
               {pkg.platform.toUpperCase()} ({pkg.arch}) · v{pkg.version} · {pkg.file_name}{" "}
@@ -589,7 +588,7 @@ function BotDownloadModal({
           ))}
         </div>
         <p>
-          安装完成后，请在“账户与连接”中开启“账户项目同步”与“Bot / MCP 项目操作与下载”，生成受隔离保护的 Bot / MCP 专用令牌。
+          安装完成后，可在“账户与连接”中开启“云端项目同步”与“BGSSAI Bot 协同编辑与下载”，生成专属访问令牌完成配对。
         </p>
       </section>
     </div>
@@ -2029,7 +2028,7 @@ export function App() {
                   打开示例，探索图层 <span>↗</span>
                 </button>
                 <p className="welcome-foot">
-                  支持 PNG / JPEG / WebP / BMP · 拖放图片即可开始
+                  支持 PSD / PNG / JPEG / WebP / BMP / SVG · 拖放文件即可开始创作
                 </p>
               </div>
             ) : (
@@ -3142,9 +3141,9 @@ export function App() {
                       setFormat(e.target.value as "png" | "jpeg" | "pdf")
                     }
                   >
-                    <option value="png">PNG · 无损，保留透明区域</option>
-                    <option value="jpeg">JPEG · 更小文件，适合分享</option>
-                    <option value="pdf">PDF · 嵌入图像的简易文档</option>
+                    <option value="png">PNG · 无损压缩，完整保留透明通道</option>
+                    <option value="jpeg">JPEG · 高压缩比，适合发布与分享</option>
+                    <option value="pdf">PDF · 适合打印与审阅的单页文档</option>
                   </select>
                 </label>
                 {format === "jpeg" && (
@@ -3346,7 +3345,7 @@ export function App() {
             ) : modal === "ai-preview" && aiPreview ? (
               <>
                 <p className="modal-subtitle">
-                  预览确认后才会写入新图层；文档若已变更将拒绝应用。
+                  确认预览效果后，AI 结果将作为独立可撤销图层置入画布，不会破坏原有图层像素。
                 </p>
                 <div className="export-summary">
                   <img
@@ -3482,10 +3481,11 @@ export function App() {
                   可导出；导入 JPEG/PNG/TIFF/WebP/HEIC/SVG/PSD 时显示转换报告。
                 </div>
                 <p className="help-limit">
-                  RAW 与 CMYK 仍不支持。PSD 导入为尽力而为，可编辑子集仅为 8 位 RGB 的原始或 PackBits
-                  像素图层、简单用户蒙版和带 Txt 的简单文字；调整图层、智能对象、图层效果、PSB
-                  与 16 位不会标成可编辑。项目使用 .bgcomp 保存。参考 robbietilton/Compositor
-                  的编辑工作流。
+                  RAW 与 CMYK 仍不支持。PSD 导入为尽力而为，可编辑子集包含 8 位 RGB 像素图层、基础用户蒙版与文字图层；调整图层、智能对象、图层样式、PSB
+                  与 16 位深图像不会标为可编辑。工程文件使用 .bgcomp 保存，完整保留图层、选区与历史步骤。
+                </p>
+                <p className="help-limit">
+                  © 2026 昆山兵贵神速智能科技有限公司 · 本地离线创作数据仅存储于当前设备，遵循用户服务协议与隐私保护规范。
                 </p>
                 <div className="modal-actions">
                   <Button className="primary" onClick={() => setModal(null)}>
