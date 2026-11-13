@@ -24,10 +24,7 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
-      - if: runner.os == 'Linux'
-        run: xvfb-run -a npm run check
-      - if: runner.os == 'macOS'
-        run: npm run check
+      - run: npm run check
       - if: runner.os == 'macOS'
         run: npm run dist:mac -- --publish never --config.mac.identity=- --config.mac.notarize=false --config.mac.hardenedRuntime=false
       - if: runner.os == 'Linux'
