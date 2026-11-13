@@ -3482,7 +3482,7 @@ export function App() {
                   可导出；导入 JPEG/PNG/TIFF/WebP/HEIC/SVG/PSD 时显示转换报告。
                 </div>
                 <p className="help-limit">
-                  RAW 与 CMYK 仍不支持。PSD 可编辑子集仅为 8 位 RGB 的原始或 PackBits
+                  RAW 与 CMYK 仍不支持。PSD 导入为尽力而为，可编辑子集仅为 8 位 RGB 的原始或 PackBits
                   像素图层、简单用户蒙版和带 Txt 的简单文字；调整图层、智能对象、图层效果、PSB
                   与 16 位不会标成可编辑。项目使用 .bgcomp 保存。参考 robbietilton/Compositor
                   的编辑工作流。
