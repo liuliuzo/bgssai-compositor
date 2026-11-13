@@ -320,3 +320,180 @@ export function createBillingStore(dataDirectory, config = {}) {
     paymentSecretConfigured: Boolean(paymentSecret),
   };
 }
+
+export function resolveModelMultiplier(modelId, explicit) {
+  if (typeof explicit === "number" && Number.isFinite(explicit) && explicit > 0) {
+    if (Math.abs(explicit - 0.5) < 1e-6) return 0.5;
+    if (Math.abs(explicit - 1.0) < 1e-6) return 1.0;
+    if (Math.abs(explicit - 1.5) < 1e-6) return 1.5;
+    return explicit <= 0.75 ? 0.5 : explicit >= 1.25 ? 1.5 : 1.0;
+  }
+  const normalized = String(modelId ?? DEFAULT_MODEL_ID).trim().toLowerCase();
+  if (normalized === DEFAULT_MODEL_ID || normalized.includes("bgssai-chat")) return 0.5;
+  if (normalized.includes("glm-4-plus") || normalized.includes("max") || normalized.includes("opus")) return 1.5;
+  return 1.0;
+}
+
+export function createCentralQuotaBridge({
+  issuer = "https://chat.bgssai.cn",
+  productCode = "compositor",
+  clientId = "compositor",
+  secret = "",
+  transport = fetch,
+} = {}) {
+  const baseOrigin = String(issuer || "https://chat.bgssai.cn").replace(/\/+$/, "");
+  const sharedSecret = String(secret ?? process.env.CHAT_CENTRAL_QUOTA_SECRET ?? "").trim();
+
+  function isActive() {
+    return sharedSecret.length > 0;
+  }
+
+  async function checkQuota({ userId, modelId, multiplier, estimatedRawTokens = 256, requestId }) {
+    const resolvedMultiplier = resolveModelMultiplier(modelId, multiplier);
+    const billedTokens = Math.max(1, Math.ceil(Math.max(1, Math.trunc(estimatedRawTokens)) * resolvedMultiplier));
+    if (!isActive()) {
+      return {
+        checked: false,
+        allowed: true,
+        schema: CENTRAL_LEDGER_SCHEMA,
+        multiplier: resolvedMultiplier,
+        estimated_billed_tokens: billedTokens,
+      };
+    }
+    if (!userId) fail(403, "请先绑定或授权 BGSSAI Chat 账号后再调用 AI 服务");
+    let response;
+    try {
+      response = await transport(`${baseOrigin}/api/internal/quota/check`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Bgssai-Internal-Secret": sharedSecret,
+          "X-Bgssai-Product": productCode,
+        },
+        body: JSON.stringify({
+          schema: CENTRAL_LEDGER_SCHEMA,
+          user_id: String(userId),
+          product_code: productCode,
+          client_id: clientId,
+          model_id: String(modelId ?? DEFAULT_MODEL_ID),
+          multiplier: resolvedMultiplier,
+          estimated_tokens: billedTokens,
+          idempotency_key: requestId ? `check:${requestId}` : undefined,
+        }),
+        redirect: "error",
+        signal: AbortSignal.timeout(10000),
+      });
+    } catch {
+      fail(503, "中心额度服务暂不可用，请稍后重试");
+    }
+    if (!response.ok) {
+      if (response.status === 402 || response.status === 429) {
+        fail(402, "中心账户额度不足，请前往 Chat 升级套餐或补充额度");
+      }
+      fail(503, "中心额度核验失败，请稍后重试");
+    }
+    const payload = await response.json();
+    if (payload && payload.allowed === false) {
+      fail(402, payload.reason || "中心账户额度不足，请前往 Chat 升级套餐或补充额度");
+    }
+    return {
+      checked: true,
+      allowed: true,
+      schema: CENTRAL_LEDGER_SCHEMA,
+      multiplier: resolvedMultiplier,
+      estimated_billed_tokens: billedTokens,
+      remaining_tokens: payload?.remaining_tokens ?? null,
+      plan_code: payload?.plan_code ?? null,
+    };
+  }
+
+  async function reportUsage({
+    userId,
+    requestId,
+    modelId,
+    multiplier,
+    promptTokens = 0,
+    completionTokens = 0,
+    rawTokens = 0,
+    usageKind = "ai_completion",
+    conversationId = null,
+    remark = null,
+  }) {
+    const resolvedMultiplier = resolveModelMultiplier(modelId, multiplier);
+    const totalRaw = Math.max(
+      0,
+      Math.trunc(Number(rawTokens || Number(promptTokens || 0) + Number(completionTokens || 0))),
+    );
+    const usageTokens = Math.max(0, Math.ceil(totalRaw * resolvedMultiplier));
+    if (!isActive() || !userId) {
+      return {
+        reported: false,
+        schema: CENTRAL_LEDGER_SCHEMA,
+        multiplier: resolvedMultiplier,
+        usage_tokens: usageTokens,
+      };
+    }
+    try {
+      const response = await transport(`${baseOrigin}/api/internal/quota/report`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Bgssai-Internal-Secret": sharedSecret,
+          "X-Bgssai-Product": productCode,
+        },
+        body: JSON.stringify({
+          schema: CENTRAL_LEDGER_SCHEMA,
+          idempotency_key: `compositor:${requestId}`,
+          user_id: String(userId),
+          product_code: productCode,
+          client_id: clientId,
+          usage_kind: usageKind,
+          usage_unit: "token",
+          multiplier: resolvedMultiplier,
+          usage_tokens: usageTokens,
+          prompt_tokens: Math.max(0, Math.trunc(Number(promptTokens || 0))),
+          completion_tokens: Math.max(0, Math.trunc(Number(completionTokens || 0))),
+          conversation_id: conversationId,
+          remark: remark ?? `model=${modelId};multiplier=${resolvedMultiplier}x`,
+        }),
+        redirect: "error",
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!response.ok) {
+        return {
+          reported: false,
+          schema: CENTRAL_LEDGER_SCHEMA,
+          multiplier: resolvedMultiplier,
+          usage_tokens: usageTokens,
+        };
+      }
+      const data = await response.json().catch(() => ({}));
+      return {
+        reported: true,
+        schema: CENTRAL_LEDGER_SCHEMA,
+        ledger_id: data?.ledger_id ?? null,
+        multiplier: resolvedMultiplier,
+        usage_tokens: usageTokens,
+        remaining_tokens: data?.remaining_tokens ?? null,
+      };
+    } catch {
+      return {
+        reported: false,
+        schema: CENTRAL_LEDGER_SCHEMA,
+        multiplier: resolvedMultiplier,
+        usage_tokens: usageTokens,
+      };
+    }
+  }
+
+  return {
+    isActive,
+    issuer: baseOrigin,
+    schema: CENTRAL_LEDGER_SCHEMA,
+    supportedMultipliers: ALLOWED_MULTIPLIERS,
+    defaultModelId: DEFAULT_MODEL_ID,
+    defaultMultiplier: DEFAULT_MULTIPLIER,
+    checkQuota,
+    reportUsage,
+  };
+}

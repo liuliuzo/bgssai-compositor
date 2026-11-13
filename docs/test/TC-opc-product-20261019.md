@@ -4,7 +4,7 @@
 
 执行更新：2026-10-25，Windows / Node 24.19.0 / Electron 44.7.0；使用本仓合成 PSD、隔离临时目录和本地测试替身，未调用真实外部服务。101 正反向通过，102 正反向因缺签名包、五端制品和真机而阻塞。结果只用待测、通过、失败、阻塞、不适用。功能未实现不能写不适用。不填写口令、Token、密钥或个人资料。2026-10-17 用例结果不在本文件改写。
 
-| 用例ID | 关联需求 | 优先级 | 端 | 前置条件与数据 | 测试步骤 | 期望结果 | 结果 | 证据与限制 |
+| 用例ID | 关联需求 | 优先级 | 端 | 前置条件与数据 | 测试步骤 | 期望结果 | 结果 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | TC-COMPOSITOR-PRODUCT-101-P | REQ-COMPOSITOR-PRODUCT-101 | P0 | user | 隔离测试环境；已记录被测版本；一份声明子集内的 8 位 RGB PSD，内含两个像素图层、一段 Txt 文字和一个简单用户蒙版；原工程副本已备份。 | 1. 导入该 PSD，查看转换报告的保留项与损失项；2. 在已声明可编辑范围内分别修改两个图层、文字和蒙版；3. 保存工程后重新打开并回读。 | 正向判定：在已声明可编辑范围内，两图层、文字和蒙版导入后可修改并回读；转换报告逐项说明保留情况。 | 通过 | `npm run test:e2e`：`PSD desktop import edits two pixel layers, text and mask, then round trips and exports`；真实 Electron 原生文件桥接、修改、回读和 PNG 像素校验均通过。保留 develop 的单元证据：`tests/psd-import.test.ts` 中 `declared 8-bit rgb subset keeps two pixel layers, a mask and text` 验证两像素层、Txt 文字、简单蒙版、`parseProject` 回读及 `retained` 保留项。输入为本仓生成的声明子集 PSD，不代表完整 Photoshop 兼容。 |
 | TC-COMPOSITOR-PRODUCT-101-N | REQ-COMPOSITOR-PRODUCT-101 | P0 | user | 隔离测试环境；一份只含图层名的 PSD；CMYK、16 位或 PSB 样本；一份损坏 PSD；一份未改动的原工程。 | 1. 导入只列出图层名的样本，检查是否被标成可编辑导入；2. 导入损坏或超限文件；3. 核对原工程是否被覆盖。 | 异常判定：只列出图层名却标成可编辑导入，或损坏文件覆盖原工程，不能通过。 | 通过 | `npm run test:e2e`：`PSD unsupported, damaged and oversized imports preserve the open project and save path`；`npm test` 中 `tests/psd-import.test.ts` 的目录、CMYK、16/32 位、PSB、ZIP、调整层/智能对象及损失报告用例通过。原工程与保存路径未被覆盖；结构目录不标 editable，图层效果、矢量蒙版、调整层、智能对象和 ZIP 均逐项报告损失。 |

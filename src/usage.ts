@@ -57,8 +57,7 @@ export function priceLabel(model: ModelPrice) {
   const multiplier = hasMultiplier
     ? `${model.billing_multiplier}× (${formatMultiplier(model.billing_multiplier)})`
     : "倍率待配置";
-  const provider = resolveHubProviderId(model.hub, model.hub_provider);
-  return `${model.id} · ${provider} · ${multiplier} · ${model.billing_unit ?? "单位未知"} · 价格版本 ${model.price_version ?? "未知"} · ${model.currency ?? "币种未知"}`;
+  return `${model.id} · CN 受控路由 · ${multiplier} · ${model.billing_unit ?? "单位未知"} · 价格版本 ${model.price_version ?? "未知"} · ${model.currency ?? "币种未知"}`;
 }
 export function usageLabel(value: UsageReceipt) {
   const hasQuota = Number.isSafeInteger(value.billed_tokens) && value.billed_tokens! >= 0;

@@ -1,32 +1,28 @@
-# PRODUCT VISION: BGSSAI Compositor (2026-10-28)
+# PRODUCT VISION: BGSSAI Compositor (2026-11-13)
 
 ## 1. 产品定位与核心使命
 
 **规范产品名**：Compositor（仓库名：`bgssai-compositor`）  
-**产品定位**：面向 OPC（One-Person Company）一人公司创作者与专业视觉设计师的 PS 式非破坏性图层与画布图像编辑软件。  
-**交付形态**：**仅桌面**。主平台是 **Windows PC**（Windows 10 / Windows 11 x64）。没有网页版，**不做 Web 部署**。  
-**参考基准**：以 [robbietilton/Compositor](https://github.com/robbietilton/Compositor) 的高响应度图层合成、非破坏性几何变换与确定性像素管线为产品方向参考，结合 BGSSAI 产品线统一账号、受控 AI 模型中枢与 Bot/MCP 自动化生态独立实现。
+**产品定位**：面向 OPC（One-Person Company）一人公司创作者与专业视觉设计师的 PS 级非破坏性图层与画布图像编辑软件。  
+**交付形态与五端定位（2026-11-13 校准）**：**仅做客户端交付，没有 Web 端部署**。当前主交付平台为 **Windows PC 桌面端**（Windows 10 / Windows 11 x64 安装版与免安装版），同时纳入 BGSSAI 产品线 **五端客户端矩阵**（除内部客服台 `bgssai-support` 外 31 个产品单元覆盖 `Windows / macOS / Linux / iOS / Android` 客户端路线图，严禁将编辑器部署为网页版）。  
+**参考基准**：以 [robbietilton/Compositor](https://github.com/robbietilton/Compositor) 的高响应度图层合成、非破坏性几何变换与确定性像素管线为产品方向参考，结合 BGSSAI 产品线统一身份（`https://chat.bgssai.cn`）、受控 AI 模型路由、中心额度账本（`bgssai_chat`）与 `bgssai-bot` / MCP 自动化生态独立实现。
 
-Compositor 致力于消除传统大型图像软件的臃肿依赖与高昂订阅门槛，提供启动即用、离线优先、崩溃不丢稿、AI 计量透明的 Windows 桌面图层创作工作台。
-
-产品线默认要求 Windows、macOS、Linux、iOS、Android 五端。Compositor 与 Office 同属明确例外：桌面软件，当前愿景只承诺 Windows PC，不部署到 Web。
+Compositor 致力于消除传统大型图像软件的臃肿依赖与高昂订阅门槛，提供启动即用、离线优先、崩溃不丢稿、AI 计量透明的桌面与全客户端图层创作工作台。
 
 ---
 
-## 2. 端侧范围（2026-10-28）
+## 2. 端侧范围（2026-11-13 校准）
 
-共享统一的 `.bgcomp` v1 工程格式。产品承诺只覆盖 Windows 桌面安装版与免安装版。2026-10-19 文本中的「最终覆盖五端」自本版起废止。
+全端共享统一的 `.bgcomp` v1 工程格式；**不做任何 Web 站点部署**，所有在线账号、同步、中心额度核验与 Bot/MCP 协同均通过客户端本地或受控后端接口完成：
 
-| 平台 | 与愿景的关系 | 仓库现状 | 不在愿景内 |
-| --- | --- | --- | --- |
-| **Windows** | **主交付，产品愿景** | `electron/`（x64 NSIS / Portable） | 未签名的本地构建不能写成已商业发布 |
-| **macOS** | 非本愿景 | `electron/` 仍可能打出 x64 / arm64 DMG 与 ZIP | 不作为产品承诺，不新建独立原生仓 |
-| **Linux** | 非本愿景 | `electron/` 仍可能打出 x64 AppImage / DEB | 不作为产品承诺 |
-| **iOS** | **非目标**。实验性工程，不是产品愿景 | `clients/ios`（Capacitor + Xcode）保留在树内 | 不签 IPA，不用模拟器构建代替交付；无明确任务时不删除该目录 |
-| **Android** | **非目标**。实验性工程，不是产品愿景 | `clients/android`（Capacitor + Gradle）保留在树内 | 不用 debug APK/AAB 代替交付；无明确任务时不删除该目录 |
-| **Web** | **非目标** | 渲染器只在 Electron 窗口内打开 | 不发布网页版，不做站点部署，不用浏览器入口代替桌面安装包 |
-
-可选的本地账号 / 同步 / Bot / TokenHub 服务不是编辑器的 Web 部署。
+| 平台 | 2026-11-13 产品规划定位 | 仓库现状与交付要求 |
+| --- | --- | --- |
+| **Windows** | **当前主交付 PC 桌面端** | `electron/`（x64 NSIS 安装包与 Portable 免安装包），离线开箱即用 |
+| **macOS** | 五端客户端矩阵目标端 | `electron/` macOS DMG / ZIP 客户端构建与签名演进 |
+| **Linux** | 五端客户端矩阵目标端 | `electron/` Linux AppImage / DEB 客户端构建演进 |
+| **iOS** | 五端客户端矩阵目标端 | `clients/ios`（Capacitor + Xcode）移动端客户端工程演进 |
+| **Android** | 五端客户端矩阵目标端 | `clients/android`（Capacitor + Gradle）移动端客户端工程演进 |
+| **Web** | **明确不做（无 Web 端部署）** | 渲染器仅在客户端壳（及 `bgssai_shell=1` 宿主嵌入壳）内运行，不部署网页版站点 |
 
 ---
 
@@ -35,31 +31,19 @@ Compositor 致力于消除传统大型图像软件的臃肿依赖与高昂订阅
 ### 3.1 非破坏性图层与画布合成引擎
 - **全功能图层栈**：支持栅格图层、可编辑多行文字图层、可编辑几何形状图层、非破坏性调整图层（色阶、曲线、色相/饱和度、曝光、黑白）、图层蒙版（绘制、反相、羽化、停用）与剪贴蒙版（Clipping Mask），提供 16 种标准混合模式与 `0..1` 精确不透明度控制。
 - **保留原始分辨率的几何变换**：支持平移、等比/自由缩放、任意角度旋转、水平/垂直翻转、按比例裁剪、画布大小与图像大小调整及透明像素修整（Trim）；画笔、橡皮擦、仿制图章、污点修复与选区工具均通过逆矩阵实时映射至图层局部坐标系。
-- **GPU/CPU 双模确定性渲染**：优先调用硬件加速滤镜，在无硬件滤镜支持或执行精细像素滤镜（高斯模糊、动感模糊、锐化、噪点）时无缝回退至基于预乘 Alpha 的纯软件像素核函数，确保 Windows 桌面渲染结果稳定、透明边缘零色晕。
+- **GPU/CPU 双模确定性渲染**：优先调用硬件加速滤镜，在无硬件滤镜支持或执行精细像素滤镜（高斯模糊、动感模糊、锐化、噪点）时无缝回退至基于预乘 Alpha 的纯软件像素核函数，确保桌面渲染结果稳定、透明边缘零色晕。
 
 ### 3.2 工业级状态恢复与防御性边界守卫
-- **双代原子恢复日志**：编辑提交后约 1.5 秒自动写入恢复快照，连续编辑每 10 秒落盘最近完整提交；采用双槽交替写入与 SHA-256 / 确定性摘要校验，断电或进程异常终止绝不破坏上一代有效快照。
+- **双代原子恢复日志**：编辑提交后约 1.5 秒自动写入恢复快照，连续编辑每 10 秒落盘最近完整提交；采用双槽交替写入与 SHA-256 确定性摘要校验，断电或进程异常终止绝不破坏上一代有效快照。
 - **损坏图层隔离与降级抢救（`recoverProjectState`）**：面对局部损坏的工程文件或快照，自动隔离损坏图层或剥离异常蒙版，并对画布尺寸（`1..16384`）、图层不透明度（`0..1`）、混合模式与变换矩阵执行防御性钳制，最大限度挽回用户有效图层资产。
 - **严格工作集与环形历史预算**：单画布上限 `8192` 单边 / `1677 万` 像素，最多 `40` 个图层 / `4800 万` 总图层像素，工程文件上限 `128 MB`；历史环形缓冲区（`HistoryRingBuffer`）严格控制在 30 步与内存预算之内，解码前预检文件头尺寸以杜绝内存溢出崩溃。
 
-### 3.3 境内 `bgssai-tokenhub-cn` 原生 AI 协同与透明计量
-- **同区受控模型路由**：境内固定通过 `bgssai-tokenhub-cn` 调用受控模型目录，绝不跨区回退；普通用户无需配置 API Key 或理解底层中枢拓扑即可使用 AI 选区重绘、内容识别填充与排版文案建议。
-- **三档倍率（`0.5x / 1.0x / 1.5x`）前置可见**：模型选择与任务预览显式展示 `0.5x`、`1.0x`、`1.5x` 额度倍率、价格版本与计费状态；未配置价格的模型明确标注“倍率待配置”。
-- **紧凑 Token 显示（`K/M/B`）与精确对账闭环**：遵循统一配额规范，UI 界面统一以 `K / M / B`（最多一位小数，如 `418.9M`）展示套餐额度、余额与任务消耗，悬停显示千分位精确整数（如 `418,912,345`），不使用“万”或“点”；API 响应、账本流水与持久化回执严格保留精确整数。
+### 3.3 境内同区 AI 协同、品牌屏蔽与中心额度对账
+- **同区受控模型路由与品牌隐藏**：境内后端固定接入同区受控模型中枢（内部标识 `bgssai-tokenhub-cn`），绝不跨区回退；所有面向终端用户的 UI 与报错信息严格隐藏 `TokenHub` 品牌、内部主机名与上游密钥。
+- **默认自建模型与三档消耗倍率（`0.5x / 1x / 1.5x`）**：默认模型为公司自建 LLM `bgssai-chat`（`0.5x` 倍率），模型选择器与用量回执显式展示 `0.5x / 1x / 1.5x` 额度消耗倍率规则。
+- **中心额度账本结算（`bgssai-chat-cn` / `bgssai_chat`）**：在线调用 AI 前须通过 `https://chat.bgssai.cn` 用户侧 OAuth 2.0 / OIDC PKCE 登录或绑定中心账号，调用前预检、调用后幂等扣减并上报 `bgssai_chat` 中心账本；UI 统一以 `K / M / B` 紧凑展示配额并在悬停与 API 中保留精确整数。
 - **先预览后应用**：所有 AI 图像生成与破坏性编辑均须先生成预览并校验文档基准修订号（`revision` / `etag`），经用户确认后方才写入图层栈并支持完整撤销。
 
-### 3.4 区域身份矩阵与 Bot / MCP 最小授权托管
-- **离线优先与独立会话**：本地编辑与导入导出永久免登录可用；在线账号支持自助注册登录、手机/邮箱验证码、区域 Chat PKCE 授权及境内主流渠道（微信、抖音、百度、支付宝，未接入真实渠道前保持诚实 503 状态与禁用提示），应用内闭环支持登录方式绑定/解绑与自助账号注销。
-- **分项显式授权（`sync` / `ai` / `bot`）**：新会话默认关闭全部在线权限；Bot 与 MCP 工具调用须同时开启 `sync` 与 `bot` 授权，并在服务端强制执行用户数据隔离、`If-Match` 乐观并发控制与操作审计。
----
-
-## Plan A Architecture Alignment (Central Ledger and Same-Region TokenHub)
-
-1. **Direct Self-Hosted LLM and Central Ledger in `bgssai-chat`**:
-   - `bgssai-chat-cn` and `bgssai-chat-global` connect directly to the company self-hosted LLM (`bgssai-chat`, not via TokenHub) and hold the central user account (OAuth 2.0 / OIDC third-party login, user-side only) and central subscription/token quota ledger (`bgssai_chat` for CN, `bgssai_chat_global` for Global).
-2. **Same-Region TokenHub Routing for All Other BGSSAI Applications**:
-   - All other BGSSAI applications connect strictly to same-region `bgssai-tokenhub-cn` (CN) or `bgssai-tokenhub-global` (Global) with zero cross-region fallback.
-   - Default model: company self-hosted LLM `bgssai-chat` at `0.5x` token consumption multiplier.
-   - `bgssai-tokenhub` branding, hostnames, and upstream keys are hidden in all user-facing UI.
-   - Model selectors display `0.5x / 1x / 1.5x` token consumption multipliers alongside compact `K / M / B` token counts (with exact integer hover and API payloads).
-   - Users must bind or sign in with `bgssai-chat` before calling LLMs, and all user-initiated token consumption settles against `bgssai-chat`'s central ledger (`docs/api/central-ledger.md`).
+### 3.4 区域身份矩阵、`bgssai-bot` 下载入口与宿主壳嵌入
+- **离线优先与境内身份矩阵**：本地编辑与导入导出永久免登录可用；在线账号支持自助注册登录、手机/邮箱验证码、`https://chat.bgssai.cn` 用户侧 PKCE 授权及境内主流渠道（微信、抖音、百度、支付宝，未配置真实凭据前诚实禁用并返回 503），闭环支持登录方式绑定/解绑与自助账号注销。
+- **应用内 `/download/bot` 与 MCP 最小授权托管**：提供应用内 `/download/bot` 下载与接入视图（对接 `https://chat.bgssai.cn` 官方 Windows / Linux 安装包与授权指引），支持 `bgssai_shell=1` 宿主壳紧凑嵌入布局；Bot 与 MCP 工具调用须同时开启 `sync` 与 `bot` 授权并强制执行 `If-Match` 乐观并发控制。
