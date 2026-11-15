@@ -417,7 +417,7 @@ function SupportModal({
           </button>
         </div>
         {!active ? (
-          <p>请先在“账户与连接”中登录账号，即可发起在线咨询或提交技术支持工单。</p>
+          <p>请先登录账号</p>
         ) : (
           <>
             <label className="form-label">
@@ -455,7 +455,7 @@ function SupportModal({
                     );
                     setSessionId(created.session_id);
                     setContent("");
-                    message("客服会话已建立");
+                    message("已创建会话");
                   })
                 }
               >
@@ -475,7 +475,7 @@ function SupportModal({
                       active.token,
                     );
                     setContent("");
-                    message("客服消息已发送");
+                    message("已发送");
                   })
                 }
               >
@@ -496,7 +496,7 @@ function SupportModal({
                       active.token,
                     );
                     setContent("");
-                    message("客服工单已提交");
+                    message("已提交");
                   })
                 }
               >
@@ -562,12 +562,9 @@ function BotDownloadModal({
         aria-label="下载与接入 BGSSAI Bot"
       >
         <div className="modal-heading">
-          <h2>下载与接入 BGSSAI Bot</h2>
+          <h2>BGSSAI Bot 客户端下载</h2>
           <button onClick={close}>关闭</button>
         </div>
-        <p>
-          安装 BGSSAI Bot 桌面客户端后，可通过自然语言对话授权智能体协助完成图层批处理、尺寸适配与格式导出，支持 Windows 与 Linux 环境。
-        </p>
         <div className="help-note">
           <strong>官方桌面端安装包</strong>
           {packages.map((pkg) => (
@@ -587,9 +584,6 @@ function BotDownloadModal({
             </p>
           ))}
         </div>
-        <p>
-          安装完成后，可在“账户与连接”中开启“云端项目同步”与“BGSSAI Bot 协同编辑与下载”，生成专属访问令牌完成配对。
-        </p>
       </section>
     </div>
   );
@@ -957,7 +951,7 @@ export function App() {
       .catch((error) => {
         if (active) {
           setRecoveryReady(true);
-          setAutosaveStatus("恢复读取失败，请手动保存");
+          setAutosaveStatus("恢复读取失败");
           message(error.message, true);
         }
       });
@@ -1002,7 +996,7 @@ export function App() {
         }
       } catch (error) {
         if (active) {
-          setAutosaveStatus("自动恢复失败，请手动保存");
+          setAutosaveStatus("自动恢复失败");
           message((error as Error).message, true);
         }
       }
@@ -1646,7 +1640,7 @@ export function App() {
           <Button title="检查更新" onClick={() => action("updates")}>
             更新
           </Button>
-          <Button title="使用说明" onClick={() => action("help")}>
+          <Button title="快捷键" onClick={() => action("help")}>
             <HelpCircle size={17} />
           </Button>
           <Button onClick={() => action("save")} disabled={working || welcome}>
@@ -1677,7 +1671,7 @@ export function App() {
                   window.desktop?.resetProjectPath();
                   lastRecovery.current = recoveryOffer.content;
                   setRecoveryOffer(null);
-                  setAutosaveStatus("项目已恢复，请保存到正式项目文件");
+                  setAutosaveStatus("项目已恢复");
                   showDocument();
                 })
               }
@@ -1753,9 +1747,6 @@ export function App() {
               />
               <output>{Math.round(editor.brushOpacity * 100)}%</output>
             </label>
-            {editor.tool === "clone" && (
-              <span className="tool-hint">Alt 点击设置仿制源</span>
-            )}
             <label>
               <input
                 type="checkbox"
@@ -1889,21 +1880,7 @@ export function App() {
               取消选区
             </Button>
           </>
-        ) : (
-          <span className="tool-hint">
-            {editor.tool === "move"
-              ? "拖动移动 · 四角缩放 · Shift 保持当前图层 · 方向键微调"
-              : editor.tool === "text"
-                ? "点击画布添加文字，在右侧编辑内容与样式"
-                : editor.tool === "hand"
-                  ? "拖动平移画布 · 任意工具按住空格切换抓手"
-                  : editor.tool === "eyedropper"
-                    ? "点击画布采样颜色"
-                    : editor.tool === "gradient"
-                      ? "拖动创建渐变"
-                      : "拖动绘制 · Shift 等比"}
-          </span>
-        )}
+        ) : null}
         <div className="options-end">
           <span className="local-dot" />
           本地工作空间
@@ -1938,14 +1915,14 @@ export function App() {
             />
             <span style={{ background: editor.color }} />
           </label>
-          <Button title="使用说明" onClick={() => action("help")}>
+          <Button title="快捷键" onClick={() => action("help")}>
             <HelpCircle size={18} />
           </Button>
         </nav>
         <section className="document-area">
           <div className="document-tab">
             <span className={editor.dirty ? "dirty-dot" : "doc-dot"} />
-            <span>{welcome ? "开始创作" : `${editor.name}.bgcomp`}</span>
+            <span>{welcome ? "未打开文档" : `${editor.name}.bgcomp`}</span>
             {!welcome && (
               <small>
                 {editor.width} × {editor.height}
@@ -1990,30 +1967,7 @@ export function App() {
           >
             {welcome ? (
               <div className="welcome">
-                <div className="welcome-art">
-                  <div className="art-frame frame-back" />
-                  <div className="art-frame frame-front">
-                    <span className="art-sun" />
-                    <span className="art-hill hill-back" />
-                    <span className="art-hill hill-front" />
-                    <span className="art-caption">
-                      MAKE ROOM
-                      <br />
-                      FOR IDEAS.
-                    </span>
-                  </div>
-                  <span className="art-badge">
-                    <Layers3 size={16} />
-                    每一层，都是可能。
-                  </span>
-                </div>
-                <p className="eyebrow">YOUR NEXT GREAT IMAGE STARTS HERE</p>
-                <h1>让灵感，自由成像。</h1>
-                <p className="welcome-copy">
-                  从一张图片或一块空白画布开始。
-                  <br />
-                  组合图层、勾勒细节，创作属于你的画面。
-                </p>
+                <h1>BGSSAI Compositor</h1>
                 <div className="welcome-actions">
                   <Button className="primary" onClick={() => action("new")} disabled={documentActionDisabled}>
                     <Plus size={17} />
@@ -2025,11 +1979,8 @@ export function App() {
                   </Button>
                 </div>
                 <button className="demo-link" onClick={() => action("demo")} disabled={documentActionDisabled}>
-                  打开示例，探索图层 <span>↗</span>
+                  打开示例
                 </button>
-                <p className="welcome-foot">
-                  支持 PSD / PNG / JPEG / WebP / BMP / SVG · 拖放文件即可开始创作
-                </p>
               </div>
             ) : (
               <div
@@ -2134,10 +2085,7 @@ export function App() {
             {draggingFile && (
               <div className="drop-overlay">
                 <ImagePlus size={34} />
-                <strong>松开以导入图像</strong>
-                <span>
-                  {welcome ? "图像将创建新文档" : "图像将添加为新图层"}
-                </span>
+                <strong>松开导入</strong>
               </div>
             )}
           </div>
@@ -2509,9 +2457,6 @@ export function App() {
                       (bwAmount) =>
                         editor.patchAdjustment({ bwAmount }, true),
                     )}
-                  {selected.adjustment.type === "curves" && (
-                    <p className="tool-hint">曲线控制点已内置；修改色阶灰场可联动。</p>
-                  )}
                   <Button
                     onClick={() => safe(() => editor.commit("调整图层"))}
                     disabled={layerDisabled}
@@ -2898,7 +2843,6 @@ export function App() {
                   <small>{index + 1}</small>
                 </button>
               ))}
-              <p>最多保留 30 步；大项目自动减少历史记录以节省内存。</p>
             </div>
           )}
         </aside>
@@ -2928,7 +2872,7 @@ export function App() {
             lastRecovery.current = null;
             setModal(null);
             showDocument();
-            message("已下载云端项目，请保存到本地");
+            message("已下载云端项目");
             return true;
           }}
         />
@@ -2966,26 +2910,26 @@ export function App() {
                         ? "AI 预览"
                         : modal === "image-size" || modal === "canvas-size"
                           ? "尺寸"
-                          : "使用说明"
+                          : "快捷键"
             }
           >
             <div className="modal-heading">
               <h2>
                 {confirm
-                  ? "保存当前更改？"
+                  ? "保存更改"
                   : modal === "new"
-                    ? "从空白开始。"
+                    ? "新建画布"
                     : modal === "export"
-                      ? "准备好分享你的作品。"
+                      ? "导出图像"
                       : modal === "import-report"
                         ? "导入转换报告"
                         : modal === "ai-preview"
-                          ? "确认 AI 预览结果"
+                          ? "AI 预览"
                           : modal === "image-size"
                             ? "图像大小"
                             : modal === "canvas-size"
                               ? "画布大小"
-                              : "你的创作工作台。"}
+                              : "快捷键"}
               </h2>
               <Button
                 title="关闭对话框"
@@ -3003,9 +2947,7 @@ export function App() {
             </div>
             {confirm ? (
               <>
-                <p>
-                  “{editor.name}”有尚未保存的更改。保存后可以继续编辑每个图层。
-                </p>
+                <p>“{editor.name}”有未保存更改。</p>
                 <div className="modal-actions">
                   <Button onClick={() => confirm("cancel")}>取消</Button>
                   <Button onClick={() => confirm("discard")}>不保存</Button>
@@ -3016,7 +2958,6 @@ export function App() {
               </>
             ) : modal === "new" ? (
               <>
-                <p className="modal-subtitle">为你的下一张作品，留一块空间。</p>
                 <label className="form-label">
                   文档名称
                   <input
@@ -3120,7 +3061,6 @@ export function App() {
               </>
             ) : modal === "export" ? (
               <>
-                <p className="modal-subtitle">将所有可见图层合成为一张图像。</p>
                 <div className="export-summary">
                   <div>
                     <ImagePlus size={24} />
@@ -3141,9 +3081,9 @@ export function App() {
                       setFormat(e.target.value as "png" | "jpeg" | "pdf")
                     }
                   >
-                    <option value="png">PNG · 无损压缩，完整保留透明通道</option>
-                    <option value="jpeg">JPEG · 高压缩比，适合发布与分享</option>
-                    <option value="pdf">PDF · 适合打印与审阅的单页文档</option>
+                    <option value="png">PNG</option>
+                    <option value="jpeg">JPEG</option>
+                    <option value="pdf">PDF</option>
                   </select>
                 </label>
                 {format === "jpeg" && (
@@ -3170,9 +3110,6 @@ export function App() {
                     </label>
                   </>
                 )}
-                <p className="export-note">
-                  使用“保存项目”生成 .bgcomp 文件，可以保留可编辑图层、选区和最近的撤销、重做记录。缺少字体时请先更换字体；磁盘空间不足或工程损坏时会停止导出并提示原因。
-                </p>
                 <div className="modal-actions">
                   <Button onClick={() => setModal(null)}>取消</Button>
                   <Button
@@ -3241,12 +3178,10 @@ export function App() {
                 </p>
                 <p className="muted">
                   {importReport.support === "editable"
-                    ? "支持导入的可编辑内容：8 位 RGB 像素图层、简单用户蒙版和文字。暂不支持全部 Photoshop 功能。"
-                    : importReport.support === "partial" && importReport.projectJson
-                      ? "部分支持：声明子集内的图层可编辑，其余项已列入损失，不会标成可编辑。"
-                      : importReport.support === "partial"
-                        ? "部分支持：只保留只读图层目录和一张已栅格化的合成图。目录不是可编辑图层。"
-                        : "未导入可编辑图层。结构目录不会标成可编辑。"}
+                    ? "状态：可编辑"
+                    : importReport.support === "partial"
+                      ? "状态：部分可编辑"
+                      : "未导入可编辑图层"}
                 </p>
                 {importReport.retained.length > 0 && (
                   <p className="muted">保留：{importReport.retained.join("、")}</p>
@@ -3272,7 +3207,7 @@ export function App() {
                 <div className="help-note">
                   {importReport.issues.map((issue, i) => (
                     <p key={i}>
-                      {({ info: "说明", warning: "注意", error: "无法导入" })[issue.severity]}：{issue.message}
+                      {({ info: "提示", warning: "注意", error: "无法导入" })[issue.severity]}：{issue.message}
                     </p>
                   ))}
                 </div>
@@ -3302,7 +3237,7 @@ export function App() {
                           if (asLayer) {
                             await editor.importProjectLayers(report.projectJson);
                             setWelcome(false);
-                            message("已导入声明子集中的可编辑图层");
+                            message("已导入图层");
                           } else {
                             if (!(await guard())) return;
                             await editor.load(report.projectJson, false);
@@ -3310,7 +3245,7 @@ export function App() {
                             await recovery.clear();
                             lastRecovery.current = null;
                             showDocument();
-                            message("已按转换报告打开可编辑子集");
+                            message("已打开项目");
                           }
                         } else if (report.imageDataUrl) {
                           if (asLayer) {
@@ -3319,7 +3254,7 @@ export function App() {
                               report.fileName,
                             );
                             setWelcome(false);
-                            message("已按转换报告导入为图层");
+                            message("已导入图层");
                           } else {
                             if (!(await guard())) return;
                             await editor.openImage(
@@ -3330,7 +3265,7 @@ export function App() {
                             await recovery.clear();
                             lastRecovery.current = null;
                             showDocument();
-                            message("已按转换报告打开图像");
+                            message("已打开图像");
                           }
                         }
                         setModal(null);
@@ -3344,9 +3279,6 @@ export function App() {
               </>
             ) : modal === "ai-preview" && aiPreview ? (
               <>
-                <p className="modal-subtitle">
-                  确认预览效果后，AI 结果将作为独立可撤销图层置入画布，不会破坏原有图层像素。
-                </p>
                 <div className="export-summary">
                   <img
                     src={aiPreview.dataUrl}
@@ -3377,7 +3309,7 @@ export function App() {
                         );
                         setAiPreview(null);
                         setModal(null);
-                        message("AI 结果已添加为可撤销图层");
+                        message("已应用为新图层");
                       })
                     }
                   >
@@ -3387,11 +3319,6 @@ export function App() {
               </>
             ) : modal === "image-size" || modal === "canvas-size" ? (
               <>
-                <p className="modal-subtitle">
-                  {modal === "image-size"
-                    ? "缩放整个文档中的图层变换。"
-                    : "改变画布边界，不缩放图层像素。"}
-                </p>
                 <div className="two-fields">
                   <label className="form-label">
                     宽度 (px)
@@ -3476,20 +3403,12 @@ export function App() {
                     </p>
                   </div>
                 </div>
-                <div className="help-note">
-                  选区支持矩形/椭圆/套索/多边形/魔棒，以及加选、减选、扩展、收缩与羽化；可对选区做内容识别填充。图层蒙版可绘制、反相、羽化与停用，并支持剪贴蒙版。画笔含硬度；另有仿制图章、污点修复、渐变与可编辑形状。调整图层与滤镜提供实时预览。PNG/JPEG/PDF
-                  可导出；导入 JPEG/PNG/TIFF/WebP/HEIC/SVG/PSD 时显示转换报告。
-                </div>
                 <p className="help-limit">
-                  RAW 与 CMYK 仍不支持。PSD 导入为尽力而为，可编辑子集包含 8 位 RGB 像素图层、基础用户蒙版与文字图层；调整图层、智能对象、图层样式、PSB
-                  与 16 位深图像不会标为可编辑。工程文件使用 .bgcomp 保存，完整保留图层、选区与历史步骤。
-                </p>
-                <p className="help-limit">
-                  © 2026 昆山兵贵神速智能科技有限公司 · 本地离线创作数据仅存储于当前设备，遵循用户服务协议与隐私保护规范。
+                  © 2026 昆山兵贵神速智能科技有限公司
                 </p>
                 <div className="modal-actions">
                   <Button className="primary" onClick={() => setModal(null)}>
-                    开始创作
+                    关闭
                   </Button>
                 </div>
               </>

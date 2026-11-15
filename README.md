@@ -13,8 +13,6 @@
 - PR / `develop` 分支的 GitHub Actions 在 Windows 上验证并生成上述文件；构建成功后在对应运行页面下载 `BGSSAI-Compositor-Windows-x64` artifact。
 - 本地编辑和文件读写不需要账号、服务器或联网；账户同步、Bot 和 TokenHub AI 建议分别授权。
 
-打开应用后可以创建画布、打开图片，或点击“打开示例”探索由多个可编辑图层组成的示例作品。
-
 ![Windows 桌面版实际运行截图](docs/review/windows-preview.png)
 
 ## 首版功能
@@ -85,9 +83,7 @@ npm run release:manifest
 
 可选本地服务在 `npm run build:shared` 后用 `npm run service` 启动，只提供账号、同步、Bot 与 TokenHub 接口。它不是编辑器的 Web 部署。先在相应 properties 填服务根地址、Chat 登记和 Hub 配置，并在服务环境提供密钥。默认空配置不发起网络请求。接口与权限说明见 [COMP-02/04/05 实现及验收](docs/feature/COMP-02-04-05.md)。
 
-`npm run build` 执行 TypeScript 类型检查和渲染器构建；`npm start` 启动已经构建好的桌面程序。`npm run test` 检查项目格式和变换坐标；`npm run test:e2e` 在真实 Electron 中验证像素编辑、图层操作、文件往返和导出。测试使用应用自带的 Electron，无需下载 Playwright 浏览器。
-
-安装脚本使用 Electron 官方下载接口及官方校验和，并用 Windows 内置 ZIP 解压器安装运行时，避免部分 Windows 系统无法加载 Electron 44 原生 ZIP 解压模块的问题。
+`npm run build` 执行 TypeScript 类型检查和渲染器构建；`npm start` 启动已经构建好的桌面程序。`npm run test` 检查项目格式和变换坐标；`npm run test:e2e` 在真实 Electron 中验证像素编辑、图层操作、文件往返和导出。
 
 ### 分支与环境
 

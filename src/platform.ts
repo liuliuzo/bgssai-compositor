@@ -86,7 +86,7 @@ export async function request(
     });
   const config = await getConfig();
   if (!config["ecosystem.url"])
-    throw new Error("尚未配置在线服务，离线编辑仍可使用。");
+    throw new Error("在线服务尚未开通");
   const base = new URL(config["ecosystem.url"]);
   if (
     base.protocol !== "https:" ||
@@ -117,7 +117,7 @@ export async function request(
           : `连接失败（${response.status}）`;
       throw new Error(
         response.status === 412
-          ? "云端版本已变化，请先下载云端版本，避免覆盖。"
+          ? "云端版本冲突，请先下载云端项目"
           : serverMsg,
       );
     }
@@ -142,7 +142,7 @@ export async function request(
     }
     throw new Error(
       response.status === 412
-        ? "云端版本已变化，请先下载云端版本，避免覆盖。"
+        ? "云端版本冲突，请先下载云端项目"
         : detail || `连接失败（${response.status}）`,
     );
   }

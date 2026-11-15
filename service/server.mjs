@@ -1668,7 +1668,7 @@ export function createService(config, transport = fetch) {
             "default-src 'none'; style-src 'unsafe-inline'",
         });
         res.end(
-          '<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>Compositor 授权完成</title><p>授权完成。请返回 Compositor 开启所需功能。</p></html>',
+          '<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>授权完成</title><p>授权完成</p></html>',
         );
         return;
       }

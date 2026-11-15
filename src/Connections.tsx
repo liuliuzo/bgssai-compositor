@@ -272,7 +272,6 @@ export function Connections({
             关闭
           </button>
         </div>
-        <p>本地图层编辑、选区蒙版与自动恢复全程支持离线使用；云端同步与 AI 辅助可按需独立开启。</p>
         {!current ? (
           <>
             <label className="form-label">
@@ -530,9 +529,7 @@ export function Connections({
                         current.token,
                       );
                       if (remote.content)
-                        throw new Error(
-                          "账户已有项目，请先下载云端版本；下载前不会覆盖云端。",
-                        );
+                        throw new Error("云端已有项目，请先下载云端项目");
                       cloudETag = remote.etag;
                     }
                     const result = await request(
@@ -543,7 +540,7 @@ export function Connections({
                       cloudETag!,
                     );
                     cloudETag = result.etag;
-                    message("项目已同步到当前账户");
+                    message("已同步");
                   })
                 }
               >
@@ -586,7 +583,7 @@ export function Connections({
             </div>
             {botToken && (
               <label className="form-label">
-                BGSSAI Bot 专用访问令牌（有效期 1 小时；关闭协同权限立即失效）
+                BGSSAI Bot 访问令牌（有效期 1 小时）
                 <input
                   readOnly
                   value={botToken}
@@ -594,9 +591,6 @@ export function Connections({
                 />
               </label>
             )}
-            <p>
-              开启 Bot 协同后，可通过桌面智能体执行项目新建、读取、资产导入导出、破坏性编辑预览确认与历史回滚；关闭云端同步权限后将清除云端项目副本。
-            </p>
             {current.grants.ai && <div aria-label="AI 模型价格">
               {models.length ? models.map((model) => <p key={model.id}>
                 {priceLabel(model)}
@@ -604,7 +598,7 @@ export function Connections({
               </p>) : <p>模型价格待确认</p>}
             </div>}
             <label className="form-label">
-              AI 模型选择（支持 0.5x 经济 / 1x 标准 / 1.5x 增强倍率）
+              AI 模型（0.5x / 1x / 1.5x）
               <select
                 aria-label="AI 模型选择"
                 value={selectedModel}
@@ -622,7 +616,7 @@ export function Connections({
               </select>
             </label>
             <label className="form-label">
-              设计需求或图层文案描述（仅发送当前输入文本，不上传本地画布图像）
+              提示词
               <textarea
                 value={prompt}
                 maxLength={4000}
@@ -649,7 +643,7 @@ export function Connections({
               生成 AI 设计建议
             </button>
             <details>
-              <summary>用量与结算明细（{usage.length} 条 · 悬停可查看精确整数）</summary>
+              <summary>用量明细（{usage.length}）</summary>
               {usage.map((value) => {
                 const billed = tokenSpanProps(value.billed_tokens);
                 return (
@@ -672,7 +666,7 @@ export function Connections({
                   onClick={() => {
                     try {
                       editor.addText({ x: 40, y: 40 }, answer.slice(0, 10000));
-                      message("AI 文字已添加为可撤销图层");
+                      message("已添加文字图层");
                     } catch (e) {
                       message((e as Error).message, true);
                     }
@@ -712,9 +706,7 @@ export function Connections({
                           { package_id: pkg.package_id, channel: "mock" },
                           current.token,
                         );
-                        message(
-                          `已创建订单 ${order.order.out_trade_no}（${pkg.name}），支付确认后额度将自动到账。`,
-                        );
+                        message(`已创建订单 ${order.order.out_trade_no}`);
                       })
                     }
                   >
@@ -788,7 +780,6 @@ export function Connections({
               ) : (
                 <p>暂无绑定记录</p>
               )}
-              <p>绑定或解绑登录方式需通过二次身份验证；当前唯一的登录方式不可解绑。</p>
               <label className="form-label">
                 安全验证凭证
                 <input
@@ -800,7 +791,6 @@ export function Connections({
             </details>
             <details>
               <summary>账号注销</summary>
-              <p>注销后无法再用任何方式登录原账号；个人数据按下列规则处理：</p>
               <ul>
                 {deletionNotice.map((line) => (
                   <li key={line}>{line}</li>
@@ -819,7 +809,7 @@ export function Connections({
                 onClick={() =>
                   void operation(async () => {
                     if (!reauthToken) {
-                      throw new Error("注销账号前请先完成安全身份验证并填写验证凭证");
+                      throw new Error("请先填写安全验证凭证");
                     }
                     await request(
                       "account/delete",
@@ -839,7 +829,7 @@ export function Connections({
                     setAckDelete(false);
                     setReauthToken("");
                     aiRequest.current = null;
-                    message("账号已注销，所有凭证已失效");
+                    message("账号已注销");
                   })
                 }
               >
@@ -864,8 +854,8 @@ export function Connections({
                   aiRequest.current = null;
                   message(
                     result.chatRevoked === false
-                      ? "本应用会话及在线权限已撤销。Chat 暂未确认撤销，请到账户中心查看。"
-                      : "账户会话及在线权限已撤销",
+                      ? "已退出（Chat 授权待确认撤销）"
+                      : "已退出",
                   );
                 })
               }

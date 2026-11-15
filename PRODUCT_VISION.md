@@ -1,13 +1,11 @@
 # PRODUCT VISION: BGSSAI Compositor (2026-11-13)
 
-## 1. 产品定位与核心使命
+## 1. 产品定位与范围
 
 **规范产品名**：Compositor（仓库名：`bgssai-compositor`）  
 **产品定位**：面向 OPC（One-Person Company）一人公司创作者与专业视觉设计师的 PS 级非破坏性图层与画布图像编辑软件。  
 **交付形态与五端定位（2026-11-13 校准）**：**仅做客户端交付，没有 Web 端部署**。当前主交付平台为 **Windows PC 桌面端**（Windows 10 / Windows 11 x64 安装版与免安装版），同时纳入 BGSSAI 产品线 **五端客户端矩阵**（除内部客服台 `bgssai-support` 外 31 个产品单元覆盖 `Windows / macOS / Linux / iOS / Android` 客户端路线图，严禁将编辑器部署为网页版）。  
-**参考基准**：以 [robbietilton/Compositor](https://github.com/robbietilton/Compositor) 的高响应度图层合成、非破坏性几何变换与确定性像素管线为产品方向参考，结合 BGSSAI 产品线统一身份（`https://chat.bgssai.cn`）、受控 AI 模型路由、中心额度账本（`bgssai_chat`）与 `bgssai-bot` / MCP 自动化生态独立实现。
-
-Compositor 致力于消除传统大型图像软件的臃肿依赖与高昂订阅门槛，提供启动即用、离线优先、崩溃不丢稿、AI 计量透明的桌面与全客户端图层创作工作台。
+**参考基准**：参考 [robbietilton/Compositor](https://github.com/robbietilton/Compositor) 图层合成、非破坏性几何变换与确定性像素管线独立实现，接入统一身份（`https://chat.bgssai.cn`）、同区受控模型路由、中心额度账本（`bgssai_chat`）与 `bgssai-bot` / MCP 接口。
 
 ---
 
