@@ -66,12 +66,13 @@ function rleSolid(value: number, width: number, height: number) {
   return Buffer.concat([counts, ...Array.from({ length: height }, () => Buffer.from(row))]);
 }
 
-interface FixtureChannel {
+export interface FixtureChannel {
   id: number;
   compression: 0 | 1 | 2;
   pixels: Buffer;
   width: number;
   height: number;
+  payload?: Buffer;
 }
 export interface FixtureLayer {
   name: string;
@@ -123,7 +124,7 @@ export function buildPsd(options: {
         channel.compression === 1
           ? rleSolid(channel.pixels[0], channel.width, channel.height)
           : channel.pixels;
-      const payload = Buffer.concat([u16(channel.compression), body]);
+      const payload = channel.payload ?? Buffer.concat([u16(channel.compression), body]);
       const info = Buffer.alloc(6);
       info.writeInt16BE(channel.id, 0);
       info.writeUInt32BE(payload.length, 2);

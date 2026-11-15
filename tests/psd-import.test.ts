@@ -1,4 +1,4 @@
-import { buildPsd, pixelLayer, dataUrl, engine } from "./helpers/psd-fixture";
+import { buildPsd, pixelLayer, dataUrl, engine, type FixtureChannel } from "./helpers/psd-fixture";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { inflateSync } from "node:zlib";
@@ -169,6 +169,139 @@ test("conversion report itemizes unsupported layers and never marks them editabl
   assert.equal(decoded.layers.find((layer) => layer.name === "Zippy")?.fidelity, "catalog");
   assert.equal(decoded.layers.find((layer) => layer.name === "Green")?.editable, true);
   assert.ok(decoded.retained.includes("图层 Green 的用户蒙版"));
+});
+
+test("additional PSD channels are itemized without changing supported pixels or masks", async () => {
+  const spotLayer = pixelLayer("Spot", 0, [10, 20, 30, 255], 0);
+  spotLayer.mask = { pixels: Buffer.from([255, 0, 255, 0]) };
+  spotLayer.channels!.push(
+    {
+      id: 3,
+      compression: 0,
+      pixels: Buffer.alloc(4, 128),
+      width: 2,
+      height: 2,
+    },
+    {
+      id: -3,
+      compression: 1,
+      pixels: Buffer.from([200]),
+      width: 1,
+      height: 1,
+    },
+  );
+  const psd = buildPsd({ width: 2, height: 2, layers: [spotLayer] });
+  const decoded = decodePsdSubset(new Uint8Array(psd), "spot.psd");
+
+  assert.equal(decoded.support, "partial");
+  assert.equal(decoded.project?.layers.length, 1);
+  assert.ok(decoded.layers[0].editable);
+  assert.deepEqual(decoded.lost, [
+    "图层 Spot 的附加通道 3 未导入",
+    "图层 Spot 的附加通道 -3 未导入",
+  ]);
+  assert.match(decoded.layers[0].note ?? "", /附加通道 3、-3 未导入/);
+
+  const report = await importWithReport("spot.psd", dataUrl(psd));
+  assert.equal(report.support, "partial");
+  assert.deepEqual(report.lost, decoded.lost);
+  assert.ok(report.ok);
+  const reloaded = parseProject(report.projectJson!);
+  assert.equal(readPng(reloaded.layers[0].image).toString("hex"), "0a141eff".repeat(4));
+  const mask = readPng(reloaded.layers[0].mask!.image);
+  assert.deepEqual([mask[3], mask[7], mask[11], mask[15]], [255, 0, 255, 0]);
+});
+
+test("unmapped channels stay visible in text and catalog conversion reports", () => {
+  const additionalChannel: FixtureChannel = {
+    id: 3,
+    compression: 2,
+    pixels: Buffer.alloc(4),
+    width: 2,
+    height: 2,
+  };
+  const psd = buildPsd({
+    width: 2,
+    height: 2,
+    layers: [
+      {
+        name: "Text",
+        top: 0,
+        left: 0,
+        bottom: 2,
+        right: 2,
+        channels: [additionalChannel],
+        text: { value: "Keep", engine },
+      },
+      {
+        name: "Catalog",
+        top: 0,
+        left: 0,
+        bottom: 2,
+        right: 2,
+        channels: [additionalChannel],
+      },
+      {
+        name: "Smart",
+        top: 0,
+        left: 0,
+        bottom: 2,
+        right: 2,
+        channels: [additionalChannel],
+        tags: [{ key: "SoLd", data: Buffer.alloc(4) }],
+      },
+    ],
+  });
+  const decoded = decodePsdSubset(new Uint8Array(psd), "mixed-channels.psd");
+
+  assert.equal(decoded.support, "partial");
+  assert.equal(decoded.project?.layers.length, 1);
+  assert.equal(decoded.project?.layers[0].text?.value, "Keep");
+  for (const layer of decoded.layers) {
+    assert.ok(decoded.lost.includes(`图层 ${layer.name} 的附加通道 3 未导入`));
+    assert.match(layer.note ?? "", /附加通道 3 未导入/);
+    assert.equal(layer.editable, layer.name === "Text");
+  }
+});
+
+test("duplicate PSD channel IDs reject the import before a project can be returned", async () => {
+  for (const channelId of [0, -1, -2, -3, 3]) {
+    const duplicateLayer = pixelLayer("Duplicate", 0, [10, 20, 30, 255], 0);
+    const source = duplicateLayer.channels!.find((channel) => channel.id === channelId);
+    if (!source) {
+      duplicateLayer.channels!.push({
+        ...duplicateLayer.channels![0],
+        id: channelId,
+      });
+    }
+    duplicateLayer.channels!.push({
+      ...duplicateLayer.channels!.find((channel) => channel.id === channelId)!,
+      pixels: Buffer.alloc(4, 200),
+    });
+    const psd = buildPsd({ width: 2, height: 2, layers: [duplicateLayer] });
+
+    assert.throws(
+      () => decodePsdSubset(new Uint8Array(psd), "duplicate.psd"),
+      /PSD 图层数据损坏/,
+    );
+    await assert.rejects(importWithReport("duplicate.psd", dataUrl(psd)), /PSD 图层数据损坏/);
+  }
+});
+
+test("unmapped PSD channels still require a complete compression header", async () => {
+  for (const length of [0, 1]) {
+    const malformedLayer = pixelLayer("Malformed", 0, [10, 20, 30, 255], 0);
+    malformedLayer.channels!.push({
+      id: -3,
+      compression: 0,
+      pixels: Buffer.alloc(4),
+      width: 2,
+      height: 2,
+      payload: Buffer.alloc(length),
+    });
+    const psd = buildPsd({ width: 2, height: 2, layers: [malformedLayer] });
+    await assert.rejects(importWithReport("malformed.psd", dataUrl(psd)), /PSD 图层数据损坏/);
+  }
 });
 
 test("structure-only catalog is never fidelity editable", async () => {

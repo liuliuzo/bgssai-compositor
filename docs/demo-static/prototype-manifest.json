@@ -5,7 +5,7 @@
     "index": "docs/demo-static/index.html",
     "page_flow": "docs/demo-static/PAGE-FLOW.html"
   },
-  "prototype_bundle_digest": "05d0987e730c53a9f57b99b824f3b859c0fb7998dcbcb16fba7c3093d8ae7501",
+  "prototype_bundle_digest": "9ffe96119398d7efd0a34916dc61d257bb35f0fd9cf202b103668b3c6c95cb0d",
   "code_contract_digest": "b720a1923089f154353cd0ada409348badec1c4a2b35c65b5496745b2e9d0be0",
   "api_endpoints": [
     "/api/auth/oauth",
@@ -44,7 +44,7 @@
     },
     {
       "path": "docs/demo-static/index.html",
-      "sha256": "3bc8678958a41c393ad5fb29024d5d5cd2108f07126c084458e67e4afcc18baf",
+      "sha256": "931c40d5bca34e1a480f43af06e23fcf55bef19efdaa6ab1939a073f20257c7e",
       "surface": "index",
       "bound_code_files": [
         "electron/main.cjs",
