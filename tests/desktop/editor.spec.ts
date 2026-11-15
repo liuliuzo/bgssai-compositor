@@ -30,7 +30,7 @@ test.beforeEach(async () => {
   page = await app.firstWindow();
   page.on("pageerror", (error) => errors.push(error.message));
   await expect(
-    page.getByRole("heading", { name: "让灵感，自由成像。" }),
+    page.getByRole("heading", { name: "BGSSAI Compositor" }),
   ).toBeVisible();
 });
 test.afterEach(async () => {
@@ -340,11 +340,11 @@ test("Windows desktop bridge is isolated and demo renders as editable layers", a
   expect(await pixel(0, 0)).toEqual([235, 231, 221, 255]);
   await page.screenshot({ path: "test-results/windows-demo.png" });
   await page
-    .getByRole("button", { name: "使用说明", exact: true })
+    .getByRole("button", { name: "快捷键", exact: true })
     .first()
     .click();
-  await expect(page.getByRole("dialog")).toContainText("RAW 与 CMYK 仍不支持");
-  await expect(page.getByRole("dialog")).toContainText("PSD 导入为尽力而为");
+  await expect(page.getByRole("dialog")).toContainText("BGSSAI Compositor");
+  await expect(page.getByRole("dialog")).toContainText("文件与历史");
 });
 
 test("closing an edited document can cancel, survive a cancelled save, or discard", async () => {

@@ -24,7 +24,7 @@ try {
     if (message.type() === "error") console.error(message.text());
   });
   await page
-    .getByRole("heading", { name: "让灵感，自由成像。" })
+    .getByRole("heading", { name: "BGSSAI Compositor" })
     .waitFor({ timeout: 15_000 });
   assert.equal(
     (await page.evaluate(() => window.desktop.getInfo())).channel,

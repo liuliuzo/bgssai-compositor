@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BGSSAI Compositor — Windows 图层式 AI 图像合成工作台原型</title>
+  <title>BGSSAI Compositor</title>
   <style>
     :root {
       color-scheme: dark;
@@ -31,6 +31,7 @@
       align-items: center;
     }
     h1, h2, h3 { margin: 0 0 10px 0; font-weight: 600; }
+    header h1 { margin: 0; }
     main {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
@@ -88,123 +89,119 @@
 </head>
 <body>
   <header>
-    <div>
-      <h1>BGSSAI Compositor</h1>
-      <small>Windows 桌面图层图像合成与 AI 精修工作台 · 支持 8 位 RGB PSD 分层导入、非破坏性调整图层、混合模式与透明通道导出</small>
-    </div>
-    <div id="session-badge">当前模式：本地离线编辑（无需登录）</div>
+    <h1>BGSSAI Compositor</h1>
+    <div id="session-badge">本地工作空间</div>
   </header>
   <main>
-    <section aria-label="工程与 PSD 导入">
-      <h2>工程管理与 PSD 分层导入</h2>
-      <p>打开 PSD 文件时将展示清晰的分层导入报告，确认后即可继续编辑；受支持的像素图层、基础文字图层与用户蒙版保留独立可编辑状态，不支持的高级属性将逐项说明。</p>
-      <p>保存为 .bgcomp 工程与自动恢复快照会完整保留当前选区及最近 30 步撤销与重做记录，重新打开后即可无缝衔接创作。</p>
-      <p>支持蒙版反相与边缘羽化；遇到缺失字体时保留原始文字内容，可在右侧属性栏切换为本地可用字体后再保存或导出。</p>
+    <section aria-label="文档与图层">
+      <h2>文档与图层</h2>
+      <div class="row">
+        <button id="btn-new-doc" type="button">新建画布</button>
+        <button id="btn-open-doc" class="secondary" type="button">打开项目</button>
+        <button id="btn-save-doc" class="secondary" type="button">保存项目</button>
+      </div>
+      <div id="doc-output" class="status-box">未命名.bgcomp · 1600 × 1000 px · RGB / 8 位 · 图层：3</div>
     </section>
-    <section aria-label="全矩阵身份认证">
-      <h2>1. 账户与 BGSSAI Chat 授权登录</h2>
-      <p>本地图层编辑始终支持完全离线运行；连接在线服务后可使用本地账号密码或 BGSSAI Chat 授权登录。</p>
+
+    <section aria-label="账户与连接">
+      <h2>账户与连接</h2>
       <label>
-        认证通道
+        登录方式
         <select id="auth-channel">
           <option value="local_password">本地账号密码登录 / 注册</option>
-          <option value="verification_code">邮箱 / 手机号验证码登录（需配置投递适配器）</option>
-          <option value="chat">Chat OIDC + S256 PKCE（独立会话）</option>
-          <option value="wechat" disabled>微信 OAuth（暂不可用）</option>
-          <option value="douyin" disabled>抖音 OAuth（暂不可用）</option>
-          <option value="baidu" disabled>百度 OAuth（暂不可用）</option>
-          <option value="alipay" disabled>支付宝 OAuth（暂不可用）</option>
+          <option value="verification_code">手机 / 邮箱验证码登录</option>
+          <option value="chat">BGSSAI Chat 授权登录</option>
+          <option value="wechat" disabled>暂未启用：微信扫码登录</option>
+          <option value="douyin" disabled>暂未启用：抖音账号登录</option>
+          <option value="baidu" disabled>暂未启用：百度账号登录</option>
+          <option value="alipay" disabled>暂未启用：支付宝快捷登录</option>
         </select>
       </label>
       <label>
-        账号标识 (用户名 / 邮箱 / 手机号)
+        账号（用户名 / 邮箱 / 手机号）
         <input id="auth-identifier" value="designer@bgssai.example" />
       </label>
       <label>
-        密码（静态示意，请勿填写真实密码）
-        <input id="auth-secret" type="password" placeholder="不发送或保存输入内容" />
+        密码
+        <input id="auth-secret" type="password" />
       </label>
       <div class="row">
-        <button id="btn-login" type="button">查看登录流程示意</button>
-        <button id="btn-logout" class="secondary" type="button">撤销会话并退出</button>
+        <button id="btn-login" type="button">登录</button>
+        <button id="btn-logout" class="secondary" type="button">退出</button>
       </div>
-      <div id="auth-output" class="status-box">等待认证操作...</div>
-      <p>验证码：配置 <code>COMPOSITOR_OTP_DELIVERY</code> 后启用；响应永不返回验证码。未配置时 send/login/verify 返回 503。国内四渠道 OAuth 仍 503。Chat 授权签发本应用独立会话并落授权记录。账号设置支持绑定/解绑与自助注销。</p>
+      <div id="auth-output" class="status-box">未登录</div>
     </section>
 
-    <section aria-label="额度套餐与 token 显示">
-      <h2>1b. 额度套餐与 token 显示</h2>
-      <p>套餐剩余示例：<strong title="418,912,345">418.9M</strong> token（悬停为精确整数；中文界面亦不折算为“万”）。开通/续费/加量以支付回调入账，重复回调只入账一次。</p>
+    <section aria-label="额度套餐">
+      <h2>额度套餐</h2>
+      <p>当前套餐：专业版 · 剩余额度：<strong title="418,912,345">418.9M</strong></p>
       <div class="row">
-        <button id="btn-quota" type="button">查看套餐与流水示意</button>
+        <button id="btn-quota" type="button">刷新额度明细</button>
       </div>
-      <div id="quota-output" class="status-box">等待操作...</div>
+      <div id="quota-output" class="status-box">就绪</div>
     </section>
 
-    <section aria-label="受控模型目录与区域路由">
-      <h2>2. AI 图层与设计建议（0.5x / 1x / 1.5x 倍率）</h2>
+    <section aria-label="AI 图层与设计建议">
+      <h2>AI 图层与设计建议</h2>
       <label>
-        可用模型列表 (/api/ai/models)
+        AI 模型（0.5x / 1x / 1.5x）
         <select id="ai-model">
-          <option value="qwen-plus" data-region="cn">Qwen Plus · 1.0x 标准倍率</option>
-          <option value="deepseek-v3" data-region="cn">DeepSeek V3 · 0.5x 经济倍率</option>
-          <option value="gpt-4o-mini" data-region="global">GPT-4o Mini · 1.0x 标准倍率</option>
-          <option value="claude-3-5-sonnet" data-region="global">Claude 3.5 Sonnet · 1.5x 增强倍率</option>
+          <option value="bgssai-chat" data-multiplier="0.5x">BGSSAI Chat · 0.5x</option>
+          <option value="qwen-plus" data-multiplier="1x">Qwen Plus · 1x</option>
+          <option value="bgssai-pro" data-multiplier="1.5x">BGSSAI Pro · 1.5x</option>
         </select>
       </label>
       <label>
-        图层文案提示词
-        <textarea id="ai-prompt" rows="2">生成海山日落主题海报标题建议</textarea>
+        提示词
+        <textarea id="ai-prompt" rows="2">海山日落海报主标题</textarea>
       </label>
       <button id="btn-ai" type="button">生成 AI 设计建议</button>
-      <div id="ai-output" class="status-box">按所选模型倍率透明核算额度，生成结果可一键置入独立可撤销文字图层。</div>
+      <div id="ai-output" class="status-box">就绪</div>
     </section>
 
-    <section aria-label="统一客服桥接">
-      <h2>3. 在线客服与技术支持工单</h2>
+    <section aria-label="在线客服与技术支持">
+      <h2>在线客服与技术支持</h2>
       <label>
-        工单主题
-        <input id="support-subject" value="导出 PNG 图层透明通道咨询" />
+        咨询或工单主题
+        <input id="support-subject" value="导出 PNG 透明通道问题" />
       </label>
       <label>
-        咨询消息
-        <textarea id="support-message" rows="2">请问如何在保留半透明阴影的情况下导出图层？</textarea>
+        咨询消息内容
+        <textarea id="support-message" rows="2">半透明阴影图层导出问题反馈</textarea>
       </label>
       <div class="row">
-        <button id="btn-support-create" type="button">创建工单并投递桥接</button>
-        <button id="btn-support-webhook" class="secondary" type="button">模拟客服回调 (含幂等校验)</button>
+        <button id="btn-support-create" type="button">提交客服工单</button>
+        <button id="btn-support-webhook" class="secondary" type="button">刷新工单状态</button>
       </div>
-      <div id="support-output" class="status-box">等待工单操作...</div>
+      <div id="support-output" class="status-box">就绪</div>
     </section>
 
-    <section aria-label="Bot 与 MCP 扩展编辑工具">
-      <h2>4. BGSSAI Bot 协同编辑与安全回滚</h2>
+    <section aria-label="BGSSAI Bot 协同编辑">
+      <h2>BGSSAI Bot 协同编辑</h2>
       <label>
-        MCP 工具动作
+        协同动作
         <select id="mcp-action">
-          <option value="create_project">create_project - 新建云端项目</option>
-          <option value="add_text_layer">add_text_layer - 新增文字图层</option>
-          <option value="add_shape_layer">add_shape_layer - 新增形状图层</option>
-          <option value="transform_layer">transform_layer - 调整变换矩阵</option>
-          <option value="adjust_filter">adjust_filter - 调整颜色与模糊滤镜</option>
-          <option value="export_asset">export_asset - 导出 .bgcomp / png / jpeg</option>
-          <option value="preview_destructive_edit">preview_destructive_edit - 预览破坏性裁切/合并</option>
-          <option value="confirm_destructive_edit">confirm_destructive_edit - 确认应用预览变更</option>
-          <option value="undo">undo / rollback - 撤销并回滚历史版本</option>
+          <option value="create_project">新建项目</option>
+          <option value="add_text_layer">新增文字图层</option>
+          <option value="add_shape_layer">新增形状图层</option>
+          <option value="transform_layer">图层变换</option>
+          <option value="adjust_filter">颜色与滤镜</option>
+          <option value="export_asset">导出图像</option>
+          <option value="preview_destructive_edit">预览变更</option>
+          <option value="confirm_destructive_edit">应用变更</option>
+          <option value="undo">撤销</option>
         </select>
       </label>
-      <button id="btn-mcp-run" type="button">执行 Bot / MCP 工具</button>
-      <div id="mcp-output" class="status-box">所有工具强制校验 PAT / Bot 令牌及用户归属隔离。</div>
+      <button id="btn-mcp-run" type="button">执行</button>
+      <div id="mcp-output" class="status-box">就绪</div>
     </section>
 
-    <section aria-label="PSD 导入报告">
-      <h2>5. PSD 声明子集导入报告</h2>
-      <p>不是完整 Photoshop 兼容。可编辑子集只包含 8 位 RGB 的原始或 PackBits 像素图层、简单用户蒙版，以及 TySh 中带 Txt 的简单文字。转换报告把保留项和损失项分开列出，未导入的附加通道也按图层逐项说明。只读结构目录不会标成可编辑。</p>
-      <div id="psd-report" class="status-box">部分支持示例（partial）
-保留：像素图层 Spot、图层 Spot 的简单用户蒙版、简单文字
-损失：图层 Spot 的附加通道 3 未导入；图层 Spot 的附加通道 -3 未导入
-保真度：仅声明子集可编辑，结构目录不是 editable</div>
-      <p>CMYK、调整图层、智能对象、图层效果、PSB 和 16 位仍不支持。重复通道 ID、缺少压缩头、损坏或超限的 PSD 文件将自动拦截提示，不会覆盖当前已打开的本地工程。</p>
+    <section aria-label="导入转换报告">
+      <h2>导入转换报告</h2>
+      <div id="psd-report" class="status-box">poster.psd · PSD · 1600×1000
+状态：部分可编辑
+保留：像素图层 Spot、用户蒙版、文字图层
+损失：附加通道 3、附加通道 -3</div>
     </section>
   </main>
   <script>
@@ -218,70 +215,48 @@
 
     document.getElementById("btn-quota")?.addEventListener("click", () => {
       document.getElementById("quota-output").textContent = JSON.stringify({
-        balance: { remaining_tokens: 418912345, display: "418.9M", exact: "418,912,345", unit: "token" },
-        credit_rule: "payment_callback_only",
-        idempotent_key: "out_trade_no"
+        package_name: "专业版",
+        remaining_tokens: 418912345,
+        display: "418.9M",
+        exact: "418,912,345"
       }, null, 2);
     });
 
     document.getElementById("btn-login").addEventListener("click", () => {
       const channel = document.getElementById("auth-channel").value;
       if (["wechat", "douyin", "baidu", "alipay"].includes(channel)) {
-        document.getElementById("auth-output").textContent = JSON.stringify(
-          { status: 503, error: "真实认证适配器尚未实现，此通道暂不可用" }, null, 2
-        );
-        return;
-      }
-      if (channel === "verification_code") {
-        document.getElementById("auth-output").textContent = JSON.stringify({
-          flow: ["POST /api/auth/code/send", "POST /api/auth/code/login"],
-          note: "响应不含 code；未配置投递适配器时 503"
-        }, null, 2);
+        document.getElementById("auth-output").textContent = "暂未启用";
         return;
       }
       const id = document.getElementById("auth-identifier").value.trim() || "user";
       state.session = {
-        preview_only: true,
         auth_channel: channel,
-        user_id: channel + ":" + id,
+        user_id: id,
         grants: { sync: false, ai: false, bot: false }
       };
-      document.getElementById("session-badge").textContent =
-        "登录结果示意（未实际登录）: " + state.session.user_id + " (" + channel + ")";
-      document.getElementById("auth-output").textContent = JSON.stringify(
-        { status: "preview_only", result: state.session },
-        null,
-        2
-      );
+      document.getElementById("session-badge").textContent = "已登录：" + id;
+      document.getElementById("auth-output").textContent = "已登录：" + id;
     });
 
     document.getElementById("btn-logout").addEventListener("click", () => {
-      const previous = state.session;
       state.session = null;
-      document.getElementById("session-badge").textContent =
-        "当前模式: 离线本地编辑 (无需登录)";
-      document.getElementById("auth-output").textContent = JSON.stringify(
-        { ok: true, revoked_channel: previous ? previous.auth_channel : null },
-        null,
-        2
-      );
+      document.getElementById("session-badge").textContent = "本地工作空间";
+      document.getElementById("auth-output").textContent = "已退出";
     });
 
     document.getElementById("btn-ai").addEventListener("click", () => {
       const select = document.getElementById("ai-model");
       const option = select.options[select.selectedIndex];
       const model = select.value;
-      const region = option.getAttribute("data-region");
+      const multiplier = option.getAttribute("data-multiplier");
       const prompt = document.getElementById("ai-prompt").value.trim();
       const requestId = "req_" + Math.random().toString(36).slice(2, 10);
       document.getElementById("ai-output").textContent = JSON.stringify(
         {
           request_id: requestId,
-          product_code: "compositor",
-          model_id: model,
-          region: region,
-          routed_hub: region === "cn" ? "https://hub-cn.bgssai.internal" : "https://hub-global.bgssai.internal",
-          text: "建议标题：" + prompt.slice(0, 24) + " - 光影层次版"
+          model: model,
+          multiplier: multiplier,
+          text: prompt.slice(0, 24)
         },
         null,
         2
@@ -293,11 +268,8 @@
       const message = document.getElementById("support-message").value.trim();
       const ticket = {
         ticket_id: "tkt_" + (state.tickets.length + 1),
-        product_code: "compositor",
-        owner_id: state.session ? state.session.user_id : "local:demo",
         subject: subject,
         status: "open",
-        delivery_status: "delivered",
         messages: [{ sender_role: "user", content: message }]
       };
       state.tickets.push(ticket);
@@ -306,18 +278,11 @@
 
     document.getElementById("btn-support-webhook").addEventListener("click", () => {
       const eventId = "evt_support_reply_001";
-      const deduplicated = state.processedEvents.has(eventId);
       state.processedEvents.add(eventId);
       document.getElementById("support-output").textContent = JSON.stringify(
         {
-          ok: true,
-          product_code: "compositor",
           event_id: eventId,
-          deduplicated: deduplicated,
-          status: "in_progress",
-          agent_reply: deduplicated
-            ? "重复回调已幂等拦截，未重复写入消息"
-            : "客服回复：PNG 导出默认保留 Alpha 透明通道。"
+          status: "in_progress"
         },
         null,
         2
@@ -336,11 +301,9 @@
       document.getElementById("mcp-output").textContent = JSON.stringify(
         {
           ok: true,
-          product_code: "compositor",
           action: action,
           preview_id: state.previewId,
-          history_depth: state.historyDepth,
-          etag: "etag_" + Math.random().toString(16).slice(2, 10)
+          history_depth: state.historyDepth
         },
         null,
         2

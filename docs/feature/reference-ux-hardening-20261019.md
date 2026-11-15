@@ -1,8 +1,8 @@
 # bgssai-compositor：参考工程（Compositor）架构对标、状态恢复守卫与 UX 强化规范（2026-10-19）
 
-## 1. 背景与目标
+## 1. 适用范围
 
-`bgssai-compositor`（规范产品名：**Compositor**）是面向 OPC（One-Person Company）创作者的 PS 式图层与画布图像编辑软件，以 Windows PC 为起点，逐步覆盖 Windows、macOS、Linux、iOS、Android 五端。本规范基于对参考工程 `robbietilton/Compositor`（`reference-github/Compositor`）的深入源码剖析，提炼非破坏性图层合成、崩溃快照恢复、防御性边界钳制、GPU/CPU 渲染回退及境内 `bgssai-tokenhub-cn` 计量透明度的工程实现标准。
+适用仓库：`bgssai-compositor`（规范名：**Compositor**，覆盖 `Windows / macOS / Linux / iOS / Android` 客户端矩阵，无 Web 端部署）。本文档规定图层合成、快照恢复、边界钳制、GPU/CPU 渲染回退与境内 `bgssai-tokenhub-cn` 计量的实现约束。
 
 ---
 

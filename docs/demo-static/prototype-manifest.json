@@ -5,7 +5,7 @@
     "index": "docs/demo-static/index.html",
     "page_flow": "docs/demo-static/PAGE-FLOW.html"
   },
-  "prototype_bundle_digest": "9ffe96119398d7efd0a34916dc61d257bb35f0fd9cf202b103668b3c6c95cb0d",
+  "prototype_bundle_digest": "affacc341e2a1c8d5446500a5047ef9f7bfb0ff65632fa8ebc7c25dc021b3a51",
   "code_contract_digest": "b720a1923089f154353cd0ada409348badec1c4a2b35c65b5496745b2e9d0be0",
   "api_endpoints": [
     "/api/auth/oauth",
@@ -15,21 +15,21 @@
   "tracked_code_files": [
     {
       "path": "electron/main.cjs",
-      "sha256": "62b7cce7f396763eb8a32a36926ac50835df0b1891fd7eacd02b36362ebd720e"
+      "sha256": "01b1bedb841455f6fc2ca68d5cb063d83a462f7175a87313c740187cc07632f0"
     },
     {
       "path": "service/server.mjs",
-      "sha256": "b589c53fb9e482e8345981923e342e4771c38a17b9711fc5eea29b25c6b50d09"
+      "sha256": "a99685d3ce2a747bc89eadaccbc46d47be6a2674b35700d89cad13e611cb8f23"
     },
     {
       "path": "src/App.tsx",
-      "sha256": "4b8a8c08c7125a61d96b4464143ba2f08f81ab29cc7f98cd1c80b3837f2348fa"
+      "sha256": "2e01f037a8ee7732aa53b66507e7475661bd833c6d3010acafc9fccf78376e39"
     }
   ],
   "pages": [
     {
       "path": "docs/demo-static/PAGE-FLOW.html",
-      "sha256": "dd44c5d96029d8832f8d50012bd011ac4a3dee0e9dec6bf3ced39c1cb3565441",
+      "sha256": "1641c51e375e3c495d94aa88ad2e340c991d99a3e24b0ceae2f8240d7d93ea87",
       "surface": "flow",
       "bound_code_files": [
         "electron/main.cjs",
@@ -44,7 +44,7 @@
     },
     {
       "path": "docs/demo-static/index.html",
-      "sha256": "931c40d5bca34e1a480f43af06e23fcf55bef19efdaa6ab1939a073f20257c7e",
+      "sha256": "5ed8179a91565eacbfbb8b73a481d250e39e34d6b20e66c6b02afd98b16b3cab",
       "surface": "index",
       "bound_code_files": [
         "electron/main.cjs",
@@ -59,7 +59,7 @@
     },
     {
       "path": "docs/demo-static/model-price-receipts.html",
-      "sha256": "f49afc7af050953712727a8dfbb741e2343e8fd43e932550f53b80b81927b31f",
+      "sha256": "d06587cb8591a7e29c02ba4920b6fccc59ae6e4fcd3f198769f560471ab3d198",
       "surface": "user",
       "bound_code_files": [
         "electron/main.cjs",
@@ -74,7 +74,7 @@
     },
     {
       "path": "docs/demo-static/recovery-startup.html",
-      "sha256": "5febfcc03828356ffac300f0528e53ad376250469a46dc44fc28803d6fbdbb57",
+      "sha256": "9a5ea90e8c40709baf41a591f68bc52bc04ec2a0bcced2077451437de51e8fa2",
       "surface": "user",
       "bound_code_files": [
         "electron/main.cjs",

@@ -18,7 +18,7 @@ async function launch() {
   alive = true;
   page = await app.firstWindow();
   await expect(
-    page.getByRole("heading", { name: "让灵感，自由成像。" }),
+    page.getByRole("heading", { name: "BGSSAI Compositor" }),
   ).toBeVisible();
 }
 test.beforeEach(async () => {
@@ -50,7 +50,7 @@ test("document actions wait for recovery initialization before accepting clicks"
     }));
   });
   await page.reload();
-  await expect(page.getByRole("heading", { name: "让灵感，自由成像。" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "BGSSAI Compositor" })).toBeVisible();
   for (const name of ["新建", "打开", "创建画布", "打开图像或项目"]) {
     await expect(page.getByRole("button", { name, exact: true })).toBeDisabled();
   }

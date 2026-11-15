@@ -29,7 +29,7 @@ try {
     window.show();
     window.focus();
   });
-  await page.getByRole("heading", { name: "让灵感，自由成像。" }).waitFor();
+  await page.getByRole("heading", { name: "BGSSAI Compositor" }).waitFor();
   assert.deepEqual(await page.evaluate(() => window.desktop.getInfo()), {
     version,
     channel: "production",

@@ -195,7 +195,7 @@ function setupIPC() {
       if (!response.ok)
         throw new Error(
           response.status === 412
-            ? "云端版本已变化，请先下载云端版本，避免覆盖。"
+            ? "云端版本冲突，请先下载云端项目"
             : `连接失败（${response.status}）`,
         );
       const chunks = [];
@@ -486,7 +486,7 @@ function setupMenu() {
       {
         label: "帮助",
         submenu: [
-          item("快捷键与使用说明", "help"),
+          item("快捷键", "help"),
           item("账户与连接", "connections"),
           item("检查更新", "updates"),
         ],
