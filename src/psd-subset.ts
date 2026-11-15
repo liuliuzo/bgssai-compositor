@@ -42,7 +42,7 @@ export interface PsdSubsetResult {
 }
 
 const EXCLUSION_NOTE =
-  "可编辑子集不是完整 Photoshop 兼容。CMYK、调整图层、智能对象、图层效果、PSB 和 16 位不会标成可编辑。";
+  "可编辑子集不是完整 Photoshop 兼容。CMYK、调整图层、智能对象、图层效果、PSB 和 16 位不会标成可编辑；未映射通道逐项列入损失。";
 
 const ADJUSTMENT_KEYS = new Set([
   "brit",
@@ -68,6 +68,7 @@ const ADJUSTMENT_KEYS = new Set([
 const SMART_KEYS = new Set(["SoLd", "PlLd", "SoLE"]);
 const EFFECT_KEYS = new Set(["lrFX", "lfx2"]);
 const VECTOR_KEYS = new Set(["vmsk", "vsms"]);
+const EDITABLE_CHANNEL_IDS = new Set([0, 1, 2, -1, -2]);
 const BLEND_KEYS: Record<string, Blend> = {
   norm: "source-over",
   dark: "darken",
@@ -607,9 +608,13 @@ function parseRecords(bytes: Uint8Array, offset: number, end: number) {
     offset += 18;
     if (channelCount > 56) damaged();
     const channels: ChannelRef[] = [];
+    const channelIds = new Set<number>();
     for (let channel = 0; channel < channelCount; channel++) {
       requireRange(bytes, offset, 6);
-      channels.push({ id: i16(bytes, offset), length: u32(bytes, offset + 2) });
+      const id = i16(bytes, offset);
+      if (channelIds.has(id)) damaged();
+      channelIds.add(id);
+      channels.push({ id, length: u32(bytes, offset + 2) });
       offset += 6;
     }
     requireRange(bytes, offset, 16);
@@ -844,7 +849,7 @@ export function decodePsdSubset(
     if (widthPx > 0 && heightPx > 0) checkDimensions(widthPx, heightPx);
     const slices: Uint8Array[] = [];
     for (const channel of layer.channels) {
-      if (channel.length > 64 * 1024 * 1024) damaged();
+      if (channel.length < 2 || channel.length > 64 * 1024 * 1024) damaged();
       if (cursor + channel.length > layerInfoEnd) damaged();
       slices.push(bytes.subarray(cursor, cursor + channel.length));
       cursor += channel.length;
@@ -874,6 +879,15 @@ export function decodePsdSubset(
   let pixels = 0;
 
   parsed.layers.forEach((layer, index) => {
+    const unimportedChannelIds = layer.channels
+      .filter((channel) => !EDITABLE_CHANNEL_IDS.has(channel.id))
+      .map((channel) => channel.id);
+    for (const channelId of unimportedChannelIds) {
+      lost.push(`图层 ${layer.name} 的附加通道 ${channelId} 未导入`);
+    }
+    const channelNote = unimportedChannelIds.length
+      ? `；附加通道 ${unimportedChannelIds.join("、")} 未导入`
+      : "";
     const adjustment = layer.keys.some((key) => ADJUSTMENT_KEYS.has(key));
     const smart = layer.keys.some((key) => SMART_KEYS.has(key));
     const effects = layer.keys.some((key) => EFFECT_KEYS.has(key));
@@ -889,7 +903,7 @@ export function decodePsdSubset(
           ? "智能对象不在可编辑子集"
           : "图层组不在可编辑子集";
       const kind = adjustment ? "adjustment" : smart ? "smart-object" : "group";
-      reportLayers.push(catalog(layer.name, kind, note));
+      reportLayers.push(catalog(layer.name, kind, `${note}${channelNote}`));
       lost.push(
         adjustment
           ? `调整图层 ${layer.name}`
@@ -904,6 +918,7 @@ export function decodePsdSubset(
     const layerHeight = layer.bottom - layer.top;
     const decoded = new Map<number, Uint8Array | "unsupported">();
     layer.channels.forEach((channel, channelIndex) => {
+      if (!EDITABLE_CHANNEL_IDS.has(channel.id)) return;
       const maskWidth = layer.mask ? layer.mask.right - layer.mask.left : 0;
       const maskHeight = layer.mask ? layer.mask.bottom - layer.mask.top : 0;
       const channelWidth = channel.id === -2 ? maskWidth : layerWidth;
@@ -933,12 +948,13 @@ export function decodePsdSubset(
       blue instanceof Uint8Array &&
       !(alpha === "unsupported");
     const compressionLost = layer.channels.some((channel, channelIndex) => {
+      if (!EDITABLE_CHANNEL_IDS.has(channel.id)) return false;
       const value = decoded.get(channel.id);
       return value === "unsupported" && payloads[index][channelIndex].length >= 2 &&
         u16(payloads[index][channelIndex], 0) > 1;
     });
     if (compressionLost) {
-      reportLayers.push(catalog(layer.name, "catalog", "压缩方式不在可编辑子集"));
+      reportLayers.push(catalog(layer.name, "catalog", `压缩方式不在可编辑子集${channelNote}`));
       lost.push(`图层 ${layer.name} 的压缩方式不在子集`);
       return;
     }
@@ -948,7 +964,7 @@ export function decodePsdSubset(
         catalog(
           layer.name,
           "catalog",
-          "只读结构目录，不是可编辑图层",
+          `只读结构目录，不是可编辑图层${channelNote}`,
         ),
       );
       lost.push(`图层 ${layer.name} 没有可编辑像素或文字`);
@@ -1044,7 +1060,7 @@ export function decodePsdSubset(
         kind: "text",
         editable: true,
         fidelity: "editable",
-        note: `简单文字，内容不是仅图层名${maskNote}`,
+        note: `简单文字，内容不是仅图层名${maskNote}${channelNote}`,
       });
     } else {
       retained.push(`像素图层 ${layer.name}`);
@@ -1053,7 +1069,7 @@ export function decodePsdSubset(
         kind: "raster",
         editable: true,
         fidelity: "editable",
-        note: `8 位 RGB 像素${maskNote}${effects ? "；图层效果未导入" : ""}`,
+        note: `8 位 RGB 像素${maskNote}${effects ? "；图层效果未导入" : ""}${channelNote}`,
       });
     }
   });

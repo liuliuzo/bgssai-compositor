@@ -199,11 +199,12 @@
 
     <section aria-label="PSD 导入报告">
       <h2>5. PSD 声明子集导入报告</h2>
-      <p>不是完整 Photoshop 兼容。可编辑子集只包含 8 位 RGB 的原始或 PackBits 像素图层、简单用户蒙版，以及 TySh 中带 Txt 的简单文字。转换报告把保留项和损失项分开列出。只读结构目录不会标成可编辑。</p>
-      <div id="psd-report" class="status-box">保留：像素图层、简单用户蒙版、简单文字
-损失：CMYK、调整图层、智能对象、图层效果、PSB、16 位
-保真度：结构目录不是 editable</div>
-      <p>损坏或超限的 PSD 文件将自动拦截提示，不会覆盖当前已打开的本地工程。</p>
+      <p>不是完整 Photoshop 兼容。可编辑子集只包含 8 位 RGB 的原始或 PackBits 像素图层、简单用户蒙版，以及 TySh 中带 Txt 的简单文字。转换报告把保留项和损失项分开列出，未导入的附加通道也按图层逐项说明。只读结构目录不会标成可编辑。</p>
+      <div id="psd-report" class="status-box">部分支持示例（partial）
+保留：像素图层 Spot、图层 Spot 的简单用户蒙版、简单文字
+损失：图层 Spot 的附加通道 3 未导入；图层 Spot 的附加通道 -3 未导入
+保真度：仅声明子集可编辑，结构目录不是 editable</div>
+      <p>CMYK、调整图层、智能对象、图层效果、PSB 和 16 位仍不支持。重复通道 ID、缺少压缩头、损坏或超限的 PSD 文件将自动拦截提示，不会覆盖当前已打开的本地工程。</p>
     </section>
   </main>
   <script>
