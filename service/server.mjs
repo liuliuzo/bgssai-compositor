@@ -22,6 +22,17 @@ import { HubReceipts, modelFields } from "./hub-receipts.mjs";
 import { createAccountStore } from "./accounts.mjs";
 import { createOtpService } from "./otp.mjs";
 import {
+  CN_OAUTH_PROVIDERS,
+  DISALLOWED_OAUTH_PROVIDERS,
+  createChannelConfigStore,
+  normalizeOauthProviderName,
+} from "./channel-config.mjs";
+import {
+  buildCnAuthorizeUrl,
+  exchangeCnOauthIdentity,
+} from "./cn-oauth.mjs";
+import { routePhone } from "./sms.mjs";
+import {
   createBillingStore,
   createCentralQuotaBridge,
   resolveModelMultiplier,
@@ -30,6 +41,7 @@ import {
 
 const PRODUCT_CODE = "compositor";
 const PRODUCT_HEADER = "bgssai-compositor";
+const DEFAULT_CHAT_ISSUER = "https://chat.bgssai.cn";
 const CN_OAUTH_CHANNELS = ["wechat", "alipay", "douyin", "baidu"];
 const DEFAULT_PNG =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==";
@@ -260,18 +272,34 @@ function buildBlankProject({
 }
 
 export function createService(config, transport = fetch) {
-  const issuer = httpsOrigin(config.chatIssuer);
-  const publicOrigin = httpsOrigin(config.publicOrigin);
+  const issuer = httpsOrigin(config.chatIssuer || DEFAULT_CHAT_ISSUER);
+  const publicOrigin = httpsOrigin(config.publicOrigin || "https://www.bgssai.com");
   if (!config.clientId) throw new Error("缺少 Chat 客户端登记");
   const dataDirectory = path.resolve(config.dataDirectory);
   if (config.hubOrigin) config = { ...config, hubOrigin: httpsOrigin(config.hubOrigin) };
   const receipts = new HubReceipts(dataDirectory, config, transport);
   const accounts = createAccountStore(dataDirectory);
-  const otp = createOtpService(dataDirectory, {
-    otpDelivery: config.otpDelivery,
-    otpTtlMs: config.otpTtlMs,
-    otpMaxSendPerHour: config.otpMaxSendPerHour,
+  const channelConfig = createChannelConfigStore(dataDirectory, {
+    sms: config.sms ?? config.initialChannelConfig?.sms,
+    smtp: config.smtp ?? config.initialChannelConfig?.smtp,
+    oauthProviders: config.oauthProviders ?? config.initialChannelConfig?.oauth,
+    useEnv: config.useEnv,
   });
+  const otp = createOtpService(
+    dataDirectory,
+    {
+      otpDelivery: config.otpDelivery,
+      otpTtlMs: config.otpTtlMs,
+      otpMaxSendPerHour: config.otpMaxSendPerHour,
+      otpCooldownMs: config.otpCooldownMs,
+      otpMaxVerifyAttempts: config.otpMaxVerifyAttempts,
+      channelConfig,
+      createMailTransport: config.createMailTransport,
+      nextSmsSeq: config.nextSmsSeq,
+      now: config.now,
+    },
+    transport,
+  );
   const billing = createBillingStore(dataDirectory, {
     packages: config.packages,
     paymentCallbackSecret: config.paymentCallbackSecret,
@@ -304,23 +332,12 @@ export function createService(config, transport = fetch) {
     activeRequests = 0;
 
   const isOauthProviderConfigured = (provider) => {
-    const cfg = config.oauthProviders?.[provider];
-    return Boolean(
-      cfg &&
-        typeof cfg.clientId === "string" &&
-        cfg.clientId.trim() &&
-        typeof cfg.authorizeUrl === "string" &&
-        cfg.authorizeUrl.startsWith("https://") &&
-        typeof cfg.tokenUrl === "string" &&
-        cfg.tokenUrl.startsWith("https://") &&
-        typeof cfg.userinfoUrl === "string" &&
-        cfg.userinfoUrl.startsWith("https://"),
-    );
+    return channelConfig.isOauthConfigured(provider);
   };
 
   const unavailableAuthChannels = () => {
     const list = CN_OAUTH_CHANNELS.filter((ch) => !isOauthProviderConfigured(ch));
-    if (otp.delivery === "none") list.unshift("verification_code");
+    if (!otp.isAnyChannelAvailable()) list.unshift("verification_code");
     return list.map((channel) => ({
       channel,
       reason:
@@ -332,11 +349,33 @@ export function createService(config, transport = fetch) {
 
   const availableAuthChannels = () => {
     const channels = ["local", "chat"];
-    if (otp.delivery !== "none") channels.push("verification_code");
+    if (otp.isAnyChannelAvailable()) channels.push("verification_code");
     for (const ch of CN_OAUTH_CHANNELS) {
       if (isOauthProviderConfigured(ch)) channels.push(ch);
     }
     return channels;
+  };
+
+  const requireAdminConfigAccess = (req) => {
+    const adminSecret = String(
+      config.adminConfigSecret ?? process.env.COMPOSITOR_ADMIN_SECRET ?? "",
+    ).trim();
+    if (!adminSecret) {
+      throw fail(503, "管理配置凭据尚未配置");
+    }
+    const headerSecret = String(
+      req.headers["x-bgssai-admin-secret"] ??
+        req.headers.authorization?.replace(/^Bearer\s+/i, "") ??
+        "",
+    ).trim();
+    if (!headerSecret) {
+      throw fail(401, "缺少管理配置凭据");
+    }
+    const expectedDigest = createHash("sha256").update(adminSecret).digest();
+    const providedDigest = createHash("sha256").update(headerSecret).digest();
+    if (!timingSafeEqual(expectedDigest, providedDigest)) {
+      throw fail(401, "管理配置凭据无效");
+    }
   };
 
   const buildModelCatalog = () => {
@@ -1317,13 +1356,74 @@ export function createService(config, transport = fetch) {
           product_code: PRODUCT_CODE,
           channels: availableAuthChannels(),
           unavailable: unavailableAuthChannels(),
+          otp_capabilities: {
+            email: otp.isEmailAvailable(),
+            phone_domestic: otp.isDomesticPhoneAvailable(),
+            phone_international: otp.isIntlPhoneAvailable(),
+          },
         });
+        return;
+      }
+
+      if (route === "GET /api/admin/config/channels") {
+        requireAdminConfigAccess(req);
+        send(200, {
+          ok: true,
+          product_code: PRODUCT_CODE,
+          sms: channelConfig.getPublicSms(),
+          smtp: channelConfig.getPublicSmtp(),
+          oauth: channelConfig.getPublicOauth(),
+        });
+        return;
+      }
+
+      if (route === "GET /api/admin/config/sms") {
+        requireAdminConfigAccess(req);
+        send(200, { ok: true, ...channelConfig.getPublicSms() });
+        return;
+      }
+
+      if (route === "PUT /api/admin/config/sms" || route === "POST /api/admin/config/sms") {
+        requireAdminConfigAccess(req);
+        const data = await body(req);
+        const saved = await channelConfig.saveSms(data);
+        send(200, { ok: true, ...saved });
+        return;
+      }
+
+      if (route === "GET /api/admin/config/smtp") {
+        requireAdminConfigAccess(req);
+        send(200, { ok: true, ...channelConfig.getPublicSmtp() });
+        return;
+      }
+
+      if (route === "PUT /api/admin/config/smtp" || route === "POST /api/admin/config/smtp") {
+        requireAdminConfigAccess(req);
+        const data = await body(req);
+        const saved = await channelConfig.saveSmtp(data);
+        send(200, { ok: true, ...saved });
+        return;
+      }
+
+      if (route === "GET /api/admin/config/oauth") {
+        requireAdminConfigAccess(req);
+        send(200, { ok: true, providers: channelConfig.getPublicOauth() });
+        return;
+      }
+
+      const oauthConfigMatch = url.pathname.match(/^\/api\/admin\/config\/oauth(?:\/([a-z0-9_-]+))?$/);
+      if (oauthConfigMatch && ["PUT", "POST"].includes(req.method)) {
+        requireAdminConfigAccess(req);
+        const data = await body(req);
+        const provider = oauthConfigMatch[1] ?? data.provider ?? data.channel;
+        const saved = await channelConfig.saveOauth(provider, data);
+        send(200, { ok: true, oauth: saved });
         return;
       }
 
       if (route === "POST /api/auth/register") {
         const data = await body(req);
-        const identifier = String(
+        let identifier = String(
           data.username ??
             data.email ??
             data.phone ??
@@ -1333,6 +1433,11 @@ export function createService(config, transport = fetch) {
         )
           .trim()
           .toLowerCase();
+        if (!data.username && !data.email && data.phone) {
+          const routed = routePhone(data.phone);
+          if (!routed) throw fail(400, "手机号无效");
+          identifier = routed.storage;
+        }
         const password = String(data.password ?? "");
         const displayName = String(
           data.display_name ?? data.name ?? data.username ?? identifier,
@@ -1395,12 +1500,19 @@ export function createService(config, transport = fetch) {
       }
 
       if (route === "POST /api/auth/code/send") {
-        if (otp.delivery === "none") {
+        if (!otp.isAnyChannelAvailable()) {
           throw fail(503, "手机/邮箱验证码真实发送与核验服务尚未配置，暂未启用");
         }
         const data = await body(req);
-        const channel = String(data.channel ?? (data.email ? "email" : data.phone ? "phone" : "")).toLowerCase();
-        const target = data.target ?? (channel === "email" ? data.email : data.phone) ?? data.identifier;
+        const channel = String(
+          data.channel ?? (data.email ? "email" : data.phone || data.national_number ? "phone" : ""),
+        ).toLowerCase();
+        let target = data.target ?? (channel === "email" ? data.email : data.phone) ?? data.identifier;
+        if (channel === "phone" && !target && (data.dial_code || data.national_number)) {
+          const cc = String(data.dial_code ?? "+86").trim().replace(/[^\d+]/g, "");
+          const national = String(data.national_number ?? "").trim().replace(/\D/g, "");
+          target = `${cc.startsWith("+") ? cc : `+${cc}`}${national}`;
+        }
         const purpose = data.purpose ?? "login";
         const result = await otp.send({ channel, target, purpose });
         send(200, result);
@@ -1411,12 +1523,19 @@ export function createService(config, transport = fetch) {
         route === "POST /api/auth/code/login" ||
         route === "POST /api/auth/code/verify"
       ) {
-        if (otp.delivery === "none") {
+        if (!otp.isAnyChannelAvailable()) {
           throw fail(503, "手机/邮箱验证码真实发送与核验服务尚未配置，暂未启用");
         }
         const data = await body(req);
-        const channel = String(data.channel ?? (data.email ? "email" : data.phone ? "phone" : "")).toLowerCase();
-        const target = data.target ?? (channel === "email" ? data.email : data.phone) ?? data.identifier;
+        const channel = String(
+          data.channel ?? (data.email ? "email" : data.phone || data.national_number ? "phone" : ""),
+        ).toLowerCase();
+        let target = data.target ?? (channel === "email" ? data.email : data.phone) ?? data.identifier;
+        if (channel === "phone" && !target && (data.dial_code || data.national_number)) {
+          const cc = String(data.dial_code ?? "+86").trim().replace(/[^\d+]/g, "");
+          const national = String(data.national_number ?? "").trim().replace(/\D/g, "");
+          target = `${cc.startsWith("+") ? cc : `+${cc}`}${national}`;
+        }
         const purpose = data.purpose ?? "login";
         const verified = await otp.verify({
           challenge_id: data.challenge_id ?? data.challengeId,
@@ -1459,95 +1578,215 @@ export function createService(config, transport = fetch) {
         return;
       }
 
-      // CN OAuth adapters fail closed with 503 unless explicitly configured with real endpoints.
+      // Real Mainland CN (wechat, douyin, baidu, alipay) + Chat/BGSSAI OAuth flows; fail closed with 503 when unconfigured.
       if (url.pathname.startsWith("/api/auth/oauth/") && ["GET", "POST"].includes(req.method)) {
         const data = req.method === "POST" ? await body(req) : Object.fromEntries(url.searchParams);
         const pathMatch = url.pathname.match(/^\/api\/auth\/oauth\/([a-z0-9_-]+)\/(authorize|callback)$/);
-        const provider = String(pathMatch?.[1] ?? data.provider ?? "").trim().toLowerCase();
-        const action = pathMatch?.[2] ?? (url.pathname.endsWith("/begin") ? "authorize" : url.pathname.endsWith("/callback") ? "callback" : "");
-        if (!CN_OAUTH_CHANNELS.includes(provider) || !isOauthProviderConfigured(provider)) {
+        const rawProvider = String(pathMatch?.[1] ?? data.provider ?? "").trim().toLowerCase();
+        const action =
+          pathMatch?.[2] ??
+          (url.pathname.endsWith("/begin")
+            ? "authorize"
+            : url.pathname.endsWith("/callback")
+              ? "callback"
+              : "");
+        if (DISALLOWED_OAUTH_PROVIDERS.has(rawProvider)) {
+          throw fail(400, "仅支持中国大陆 OAuth 渠道");
+        }
+        const normalizedProvider = normalizeOauthProviderName(rawProvider);
+        const isChatAlias = normalizedProvider === "bgssai";
+        if (!CN_OAUTH_PROVIDERS.includes(normalizedProvider) && !isChatAlias) {
           throw fail(503, "第三方 OAuth 身份校验尚未接入，暂未启用");
         }
-        const cfg = config.oauthProviders[provider];
+        if (!isChatAlias && !isOauthProviderConfigured(normalizedProvider)) {
+          throw fail(503, "第三方 OAuth 身份校验尚未接入，暂未启用");
+        }
+        const cfg = channelConfig.getOauth(normalizedProvider);
+        const useChatOidcFallback =
+          isChatAlias && !isOauthProviderConfigured("bgssai");
         if (action === "authorize") {
+          if (pending.size >= 100 || sessions.size >= 1000) {
+            throw fail(429, "授权会话达到上限");
+          }
+          if (useChatOidcFallback) {
+            const meta = await metadata();
+            const reqId = random();
+            const state = random();
+            const verifier = random();
+            const redirectUri = `${publicOrigin}/oauth/callback`;
+            const authorize = new URL(endpoint(meta.authorization_endpoint));
+            authorize.searchParams.set("client_id", config.clientId);
+            authorize.searchParams.set("response_type", "code");
+            authorize.searchParams.set("redirect_uri", redirectUri);
+            authorize.searchParams.set("scope", "openid profile");
+            authorize.searchParams.set("state", state);
+            authorize.searchParams.set(
+              "code_challenge",
+              createHash("sha256").update(verifier).digest("base64url"),
+            );
+            authorize.searchParams.set("code_challenge_method", "S256");
+            pending.set(reqId, {
+              state,
+              verifier,
+              provider: "chat",
+              redirectUri,
+              expiresAt: now + 600_000,
+            });
+            send(200, {
+              ok: true,
+              provider: rawProvider || "chat",
+              requestId: reqId,
+              request_id: reqId,
+              state,
+              authorizeUrl: authorize.href,
+              authorize_url: authorize.href,
+            });
+            return;
+          }
           const reqId = random();
           const state = random();
-          const authorize = new URL(cfg.authorizeUrl);
-          authorize.searchParams.set("client_id", cfg.clientId);
-          authorize.searchParams.set("appid", cfg.clientId);
-          authorize.searchParams.set("response_type", "code");
-          authorize.searchParams.set("redirect_uri", `${publicOrigin}/api/auth/oauth/${provider}/callback`);
-          authorize.searchParams.set("scope", cfg.scope ?? "basic");
-          authorize.searchParams.set("state", state);
+          const verifier = isChatAlias ? random() : undefined;
+          const codeChallenge = verifier
+            ? createHash("sha256").update(verifier).digest("base64url")
+            : undefined;
+          const redirectUri =
+            cfg.redirect_uri || `${publicOrigin}/api/auth/oauth/${rawProvider}/callback`;
+          const authorizeHref = buildCnAuthorizeUrl({
+            provider: normalizedProvider,
+            cfg,
+            redirectUri,
+            state,
+            codeChallenge,
+          });
           pending.set(reqId, {
             state,
-            provider,
-            expiresAt: now + 600000,
+            verifier,
+            provider: normalizedProvider,
+            rawProvider,
+            redirectUri,
+            expiresAt: now + 600_000,
           });
           send(200, {
             ok: true,
-            provider,
+            provider: rawProvider || normalizedProvider,
             requestId: reqId,
             request_id: reqId,
             state,
-            authorizeUrl: authorize.href,
-            authorize_url: authorize.href,
+            authorizeUrl: authorizeHref,
+            authorize_url: authorizeHref,
           });
           return;
         }
         if (action === "callback") {
           const state = String(data.state ?? "");
-          const code = String(data.code ?? "");
-          const entry = [...pending.values()].find((v) => v.state === state && v.provider === provider);
+          const code = String(data.code ?? data.auth_code ?? "");
+          const entry = [...pending.values()].find(
+            (v) =>
+              v.state === state &&
+              (v.provider === normalizedProvider ||
+                (isChatAlias && (v.provider === "chat" || v.provider === "bgssai"))),
+          );
+          if (data.error) {
+            if (entry) entry.cancelled = true;
+            throw fail(400, "用户拒绝授权");
+          }
           if (!entry || entry.exchanging || entry.session || entry.cancelled || !code) {
             throw fail(400, "授权状态无效或缺少授权码");
           }
           entry.exchanging = true;
-          const tokenRes = await transport(cfg.tokenUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({
+          let extSub;
+          let displayName;
+          let chatToken = null;
+          if (useChatOidcFallback) {
+            const meta = await metadata();
+            const form = new URLSearchParams({
               grant_type: "authorization_code",
               code,
-              client_id: cfg.clientId,
-              client_secret: cfg.clientSecret ?? "",
-              redirect_uri: `${publicOrigin}/api/auth/oauth/${provider}/callback`,
-            }),
-            redirect: "error",
-            signal: AbortSignal.timeout(15000),
-          });
-          if (!tokenRes.ok) throw fail(401, "第三方 OAuth 换票失败");
-          const tokens = await tokenRes.json();
-          const accessToken = tokens.access_token ?? tokens.data?.access_token;
-          if (typeof accessToken !== "string" || !accessToken) throw fail(502, "第三方 OAuth 换票响应无效");
-          const infoRes = await transport(cfg.userinfoUrl, {
-            headers: { Authorization: `Bearer ${accessToken}` },
-            redirect: "error",
-            signal: AbortSignal.timeout(15000),
-          });
-          if (!infoRes.ok) throw fail(401, "第三方 OAuth 身份验证失败");
-          const info = await infoRes.json();
-          const extSub = String(info.sub ?? info.openid ?? info.open_id ?? info.userid ?? info.user_id ?? "");
-          if (!extSub) throw fail(502, "第三方 OAuth 身份缺少唯一标识");
-          const displayName = String(info.nickname ?? info.name ?? info.username ?? `${provider}_${extSub.slice(0, 8)}`).slice(0, 200);
+              redirect_uri: entry.redirectUri ?? `${publicOrigin}/oauth/callback`,
+              client_id: config.clientId,
+              ...(entry.verifier ? { code_verifier: entry.verifier } : {}),
+            });
+            if (config.clientSecret) form.set("client_secret", config.clientSecret);
+            const tokenRes = await transport(endpoint(meta.token_endpoint), {
+              method: "POST",
+              body: form,
+              redirect: "error",
+              signal: AbortSignal.timeout(15_000),
+            });
+            if (!tokenRes.ok) throw fail(401, "Chat 换票失败");
+            const tokens = await tokenRes.json();
+            if (typeof tokens.access_token !== "string" || !tokens.access_token) {
+              throw fail(502, "Chat 换票响应无效");
+            }
+            chatToken = tokens.access_token;
+            const infoRes = await transport(endpoint(meta.userinfo_endpoint), {
+              headers: { Authorization: `Bearer ${chatToken}` },
+              redirect: "error",
+              signal: AbortSignal.timeout(15_000),
+            });
+            if (!infoRes.ok) throw fail(401, "Chat 身份验证失败");
+            const info = await infoRes.json();
+            if (typeof info.sub !== "string" || !info.sub) {
+              throw fail(502, "Chat 身份缺少 sub");
+            }
+            extSub = info.sub;
+            displayName = String(info.nickname ?? info.name ?? extSub).slice(0, 200);
+          } else {
+            const exchanged = await exchangeCnOauthIdentity({
+              provider: normalizedProvider,
+              cfg,
+              code,
+              redirectUri:
+                entry.redirectUri ||
+                cfg.redirect_uri ||
+                `${publicOrigin}/api/auth/oauth/${rawProvider}/callback`,
+              codeVerifier: entry.verifier,
+              transport,
+            });
+            extSub = exchanged.extSub;
+            displayName = String(exchanged.displayName).slice(0, 200);
+            chatToken = exchanged.accessToken ?? null;
+          }
+
+          const authChannelName = isChatAlias ? "chat" : normalizedProvider;
           const { account, sub } = await accounts.ensureOauthAccount({
-            provider,
+            provider: authChannelName,
             sub: extSub,
             name: displayName,
           });
-          await accounts.recordAuthGrant({ accountId: account.account_id, provider, subject: extSub });
+          await accounts.recordAuthGrant({
+            accountId: account.account_id,
+            provider: authChannelName,
+            subject: extSub,
+          });
           const created = createSessionRecord({
             sub,
             name: displayName,
-            authChannel: provider,
+            authChannel: authChannelName,
+            chatToken: isChatAlias ? chatToken : null,
             accountId: account.account_id,
           });
           entry.session = created.publicSession;
+          const wantsJson =
+            req.method === "POST" ||
+            url.searchParams.get("format") === "json" ||
+            String(req.headers.accept ?? "").includes("application/json");
+          if (!wantsJson) {
+            res.writeHead(200, {
+              "Content-Type": "text/html; charset=utf-8",
+              "Content-Security-Policy":
+                "default-src 'none'; style-src 'unsafe-inline'",
+            });
+            res.end(
+              '<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>授权完成</title><p>授权完成</p></html>',
+            );
+            return;
+          }
           send(200, {
             ok: true,
             token: created.token,
             user_id: sub,
-            auth_channel: provider,
+            auth_channel: authChannelName,
             account_id: account.account_id,
             session: created.publicSession,
           });
@@ -2864,9 +3103,19 @@ export function createService(config, transport = fetch) {
       throw fail(404, "接口不存在");
     } catch (error) {
       if (!res.headersSent) {
+        const smsCfg = channelConfig.getSms();
+        const smtpCfg = channelConfig.getSmtp();
         const safeError = scrubMessage(
           error.status ? error.message : "请求无效或存储失败",
-          [config.hubKey, config.clientSecret, config.supportBridgeSecret],
+          [
+            config.hubKey,
+            config.clientSecret,
+            config.supportBridgeSecret,
+            config.adminConfigSecret,
+            smsCfg.secret_key,
+            smsCfg.intl_secret_key,
+            smtpCfg.password,
+          ],
         );
         send(error.status ?? 400, {
           error: safeError,
@@ -2913,9 +3162,18 @@ if (
       }),
   );
   const server = createService({
-    chatIssuer: properties["chat.issuer"],
-    publicOrigin: properties["ecosystem.url"],
-    clientId: properties["chat.client-id"],
+    chatIssuer:
+      properties["chat.issuer"] ||
+      process.env.COMPOSITOR_CHAT_ISSUER ||
+      DEFAULT_CHAT_ISSUER,
+    publicOrigin:
+      properties["ecosystem.url"] ||
+      process.env.COMPOSITOR_PUBLIC_ORIGIN ||
+      "https://www.bgssai.com",
+    clientId:
+      properties["chat.client-id"] ||
+      process.env.COMPOSITOR_CHAT_CLIENT_ID ||
+      "compositor",
     clientSecret: process.env.COMPOSITOR_CHAT_CLIENT_SECRET,
     dataDirectory: process.env.COMPOSITOR_DATA_DIRECTORY ?? "./service-data",
     allowedOrigins: [
@@ -2923,13 +3181,14 @@ if (
       "https://localhost",
       properties["ecosystem.url"],
       ...(environment === "dev" ? ["http://127.0.0.1:5173"] : []),
-    ],
+    ].filter(Boolean),
     hubOrigin: properties["hub.url"],
     hubKey: process.env.COMPOSITOR_HUB_KEY,
     hubModel: properties["hub.model"],
     hubCnOrigin: properties["hub.cn.url"],
     hubGlobalOrigin: properties["hub.global.url"],
     supportBridgeSecret: process.env.COMPOSITOR_SUPPORT_BRIDGE_SECRET,
+    adminConfigSecret: process.env.COMPOSITOR_ADMIN_SECRET,
     otpDelivery: process.env.COMPOSITOR_OTP_DELIVERY ?? "none",
     paymentCallbackSecret: process.env.COMPOSITOR_PAYMENT_CALLBACK_SECRET,
   });

@@ -111,20 +111,35 @@
           <option value="local_password">本地账号密码登录 / 注册</option>
           <option value="verification_code">手机 / 邮箱验证码登录</option>
           <option value="chat">BGSSAI Chat 授权登录</option>
-          <option value="wechat" disabled>暂未启用：微信扫码登录</option>
-          <option value="douyin" disabled>暂未启用：抖音账号登录</option>
-          <option value="baidu" disabled>暂未启用：百度账号登录</option>
-          <option value="alipay" disabled>暂未启用：支付宝快捷登录</option>
+          <option value="wechat">微信扫码登录</option>
+          <option value="douyin">抖音账号登录</option>
+          <option value="baidu">百度账号登录</option>
+          <option value="alipay">支付宝快捷登录</option>
         </select>
       </label>
-      <label>
-        账号（用户名 / 邮箱 / 手机号）
-        <input id="auth-identifier" value="designer@bgssai.example" />
-      </label>
-      <label>
-        密码
-        <input id="auth-secret" type="password" />
-      </label>
+      <div class="row">
+        <label style="flex: 0 0 140px;">
+          区号
+          <select id="auth-dial">
+            <option value="+86" selected>CN +86</option>
+            <option value="+852">HK +852</option>
+            <option value="+65">SG +65</option>
+            <option value="+81">JP +81</option>
+            <option value="+1">US +1</option>
+          </select>
+        </label>
+        <label style="flex: 1;">
+          账号（手机号 / 邮箱 / 用户名）
+          <input id="auth-identifier" value="13800138000" />
+        </label>
+      </div>
+      <div class="row">
+        <label style="flex: 1;">
+          密码 / 验证码
+          <input id="auth-secret" type="password" />
+        </label>
+        <button id="btn-send-otp" class="secondary" type="button" style="flex: 0 0 132px; align-self: flex-end; margin-bottom: 8px;">发送验证码</button>
+      </div>
       <div class="row">
         <button id="btn-login" type="button">登录</button>
         <button id="btn-logout" class="secondary" type="button">退出</button>
@@ -222,20 +237,36 @@
       }, null, 2);
     });
 
+    let otpCooldown = 0;
+    document.getElementById("btn-send-otp")?.addEventListener("click", () => {
+      if (otpCooldown > 0) return;
+      const dial = document.getElementById("auth-dial").value;
+      const raw = document.getElementById("auth-identifier").value.trim();
+      const target = raw.includes("@") ? raw : dial + raw.replace(/\D/g, "");
+      const route = target.startsWith("+86") ? "domestic" : "international";
+      otpCooldown = 60;
+      const btn = document.getElementById("btn-send-otp");
+      btn.disabled = true;
+      btn.textContent = "重新发送 (60s)";
+      document.getElementById("auth-output").textContent = JSON.stringify({
+        route: route,
+        target: target,
+        cooldown_seconds: 60
+      });
+    });
+
     document.getElementById("btn-login").addEventListener("click", () => {
       const channel = document.getElementById("auth-channel").value;
-      if (["wechat", "douyin", "baidu", "alipay"].includes(channel)) {
-        document.getElementById("auth-output").textContent = "暂未启用";
-        return;
-      }
-      const id = document.getElementById("auth-identifier").value.trim() || "user";
+      const dial = document.getElementById("auth-dial").value;
+      const rawId = document.getElementById("auth-identifier").value.trim() || "user";
+      const id = channel === "verification_code" && !rawId.includes("@") ? dial + rawId.replace(/\D/g, "") : rawId;
       state.session = {
         auth_channel: channel,
         user_id: id,
         grants: { sync: false, ai: false, bot: false }
       };
       document.getElementById("session-badge").textContent = "已登录：" + id;
-      document.getElementById("auth-output").textContent = "已登录：" + id;
+      document.getElementById("auth-output").textContent = "已登录：" + channel + " · " + id;
     });
 
     document.getElementById("btn-logout").addEventListener("click", () => {

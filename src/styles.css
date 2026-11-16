@@ -1243,6 +1243,70 @@ kbd {
 .grant { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
 .ai-answer { white-space: pre-wrap; }
 .connections { width: 620px; }
+.phone-dial-field { display: flex; gap: 8px; align-items: stretch; width: 100%; }
+.phone-dial-combo { position: relative; flex-shrink: 0; }
+.phone-dial-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  min-width: 104px;
+  padding: 6px 10px;
+  border: 1px solid #4a5941;
+  border-radius: 4px;
+  background: #2d3827;
+  color: #d5dfca;
+  cursor: pointer;
+}
+.phone-dial-iso { font-size: 11px; color: #b4c4b3; font-weight: 600; }
+.phone-dial-code { font-variant-numeric: tabular-nums; }
+.phone-dial-input { flex: 1; min-width: 0; }
+.phone-dial-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  width: 260px;
+  max-height: 260px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  border: 1px solid #4a5941;
+  border-radius: 6px;
+  background: #202924;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.phone-dial-search {
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 6px 8px;
+  border: 1px solid #4a5941;
+  border-radius: 4px;
+  background: #2d3827;
+  color: #d5dfca;
+}
+.phone-dial-list { overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.phone-dial-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #d5dfca;
+  text-align: left;
+  cursor: pointer;
+}
+.phone-dial-option:hover, .phone-dial-option.active { background: #2d3827; }
+.phone-dial-option-iso { font-size: 11px; color: #b4c4b3; min-width: 28px; }
+.phone-dial-option-name { flex: 1; font-size: 12px; }
+.phone-dial-option-dial { font-size: 12px; color: #b4c4b3; font-variant-numeric: tabular-nums; }
+.phone-dial-empty { padding: 8px; font-size: 12px; color: #b4c4b3; text-align: center; }
+.oauth-channel-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.oauth-channel-btn { display: inline-flex; align-items: center; gap: 8px; }
+.oauth-channel-icon { width: 20px; height: 20px; flex-shrink: 0; object-fit: contain; }
 @media (max-width: 1000px) {
   .topbar { height: auto; min-height: 64px; padding: 8px; gap: 8px; flex-wrap: wrap; }
   .brand { min-width: 120px; }
