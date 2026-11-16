@@ -6,13 +6,14 @@
 
 | 方法 / 路径 | 说明 |
 | --- | --- |
-| `GET /api/auth/channels` | `channels` 列出已启用通道：始终含 `local`、`chat`；当 `COMPOSITOR_OTP_DELIVERY`≠`none` 时含 `verification_code`。`unavailable` 列出未启用通道及原因（默认含国内 OAuth；OTP 未配置时亦含 `verification_code`） |
-| `POST /api/auth/register` | 本地账号注册（`username`/`email`/`phone` + `password`），创建账号与 `password` 绑定；重复账号返回 409 |
+| `GET /api/auth/channels` | 返回 `channels`（始终含 `local`、`chat`，按配置动态包含 `verification_code` 与已启用国内 OAuth）、`unavailable`（未启用渠道与原因）及 `otp_capabilities`（`email`、`phone_domestic`、`phone_international`） |
+| `POST /api/auth/register` | 本地账号注册（`username`/`email`/`phone` + `password`），手机号按 `+86` / 非 `+86` E.164 归一化；重复账号返回 409 |
 | `POST /api/auth/login` / `POST /api/auth/login/password` | 本地账号密码登录；已注销账号返回 403；密码错误返回 401 |
-| `POST /api/auth/code/send` | 邮箱/手机验证码发送。投递适配器未配置时固定 503。`file` 适配器仅写入服务端 outbox，**响应永不包含验证码**。限时、限频、绑定接收人与 `purpose` |
-| `POST /api/auth/code/login` / `POST /api/auth/code/verify` | 校验验证码：单次使用、绑定 challenge/接收人/用途。`purpose=login` 签发本应用会话；`purpose=reauth`/`step_up` 需已登录并返回 `reauth_token` |
-| `GET/POST /api/auth/oauth/:provider/*` | `wechat` / `alipay` / `douyin` / `baidu` 真实 OAuth 尚未接入，固定 503 |
-| `POST /api/auth/begin` / `GET /oauth/callback` / `POST /api/auth/poll` | Chat OIDC + S256 PKCE；回调后签发**本应用独立会话**，并持久化授权记录；不以 Chat 令牌替代本应用会话 |
+| `POST /api/auth/code/send` | 发送 6 位（`randomInt(100000, 1000000)`）验证码。支持 SMTP 邮件与腾讯云 SMS（国内 `+86` 与国际非 `+86` E.164 严格独立路由、互不回退，可传 `dial_code` + `national_number` 或 `target`）。60s 发送冷却（`429`）；未配置通道返回 503；响应永不回显验证码或 `seq` |
+| `POST /api/auth/code/login` / `POST /api/auth/code/verify` | 校验验证码：单次使用、最多 5 次尝试、绑定 challenge/接收人/用途。`purpose=login` 签发本应用会话；`purpose=reauth`/`step_up` 需已登录并返回 `reauth_token` |
+| `GET/POST /api/auth/oauth/:provider/*` | `wechat` / `alipay` / `douyin` / `baidu` / `chat`（`bgssai`）真实 OAuth 授权与回调；未配置渠道返回 503；海外或禁用渠道（`google`/`github`/`gitlab`/`weibo` 等）返回 400 |
+| `POST /api/auth/begin` / `GET /oauth/callback` / `POST /api/auth/poll` | Chat OIDC + S256 PKCE（`https://chat.bgssai.cn`）；回调后签发**本应用独立会话**，并持久化授权记录；不以 Chat 令牌替代本应用会话 |
+| `GET/PUT /api/admin/config/{channels,sms,smtp,oauth}` | 管理配置读取与保存（`X-Bgssai-Admin-Secret` 鉴权，密钥未配返回 503）；GET 将密钥脱敏为 `******`，PUT 传入空值或 `******` 时保留原密钥；`sms.tencentcloudapi.com` 拒绝 `ap-singapore` |
 | `DELETE /api/session` / `POST /api/auth/logout` / `POST /api/auth/revoke` | 撤销当前会话及其关联的 Bot/PAT 令牌 |
 
 成功登录后的 `sync`、`ai`、`bot` 默认均为 `false`。响应会话可含 `account_id`。
@@ -60,4 +61,4 @@
 ## 5. 配置分层
 
 - 中间件连接参数（服务端口、数据目录、中枢 URL 等）写在 `config/application-*.properties` / 环境变量，不进 Admin 库表。
-- 业务第三方凭证（支付回调密钥、真实短信/邮件通道等）以环境变量注入；缺省时相关通道 503，用例记阻塞。
+- 业务第三方凭证（支付回调密钥、腾讯云国内/国际 SMS、SMTP、国内四渠道 OAuth 等）支持环境变量注入或经管理配置持久化保存；GET 读取返回 `******` 脱敏，PUT 提交空白或 `******` 保留原值；缺省时对应通道 fail-closed 返回 503。

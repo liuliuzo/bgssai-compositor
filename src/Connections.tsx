@@ -16,6 +16,18 @@ import {
   type UsageReceipt,
 } from "./usage";
 import { formatCompactTokens, formatExactTokens } from "./tokens";
+import { PhoneDialField } from "./PhoneDialField";
+import { DEFAULT_DIAL_CODE, validatePhoneParts } from "./phoneDial";
+
+const OAUTH_BRAND_ICONS: Record<string, string> = {
+  chat: "./brand/oauth/bgssai.svg",
+  wechat: "./brand/oauth/wechat.svg",
+  alipay: "./brand/oauth/alipay.svg",
+  douyin: "./brand/oauth/douyin.svg",
+  baidu: "./brand/oauth/baidu.svg",
+};
+
+const CN_OAUTH_PROVIDERS = ["wechat", "alipay", "douyin", "baidu"] as const;
 
 export type Grants = { sync: boolean; ai: boolean; bot: boolean };
 export type Session = {
@@ -86,7 +98,10 @@ export function Connections({
     | "douyin"
     | "baidu"
   >("chat");
-  const [otpChannel, setOtpChannel] = useState<"email" | "phone">("email");
+  const [otpChannel, setOtpChannel] = useState<"email" | "phone">("phone");
+  const [dialCode, setDialCode] = useState(DEFAULT_DIAL_CODE);
+  const [phoneNational, setPhoneNational] = useState("");
+  const [otpCooldown, setOtpCooldown] = useState(0);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [otpCode, setOtpCode] = useState("");
@@ -132,6 +147,20 @@ export function Connections({
       .then((result) => {
         if (!mounted.current) return;
         setChannels(result.channels ?? ["local", "chat"]);
+        const caps = result.otp_capabilities as
+          | {
+              email?: boolean;
+              phone_domestic?: boolean;
+              phone_international?: boolean;
+            }
+          | undefined;
+        if (caps) {
+          const phoneReady = Boolean(
+            caps.phone_domestic || caps.phone_international,
+          );
+          if (phoneReady) setOtpChannel("phone");
+          else if (caps.email) setOtpChannel("email");
+        }
         const nextUnavailable = Array.isArray(result.unavailable)
           ? result.unavailable
           : [];
@@ -157,6 +186,13 @@ export function Connections({
       mounted.current = false;
     };
   }, [message]);
+  useEffect(() => {
+    if (otpCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setOtpCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [otpCooldown]);
   useEffect(() => {
     if (!waiting) return;
     let cancelled = false;
@@ -258,6 +294,33 @@ export function Connections({
     setCurrent(nextSession);
     setWaiting(false);
   };
+  const startOauth = async (
+    provider: "chat" | "wechat" | "alipay" | "douyin" | "baidu",
+  ) => {
+    const result =
+      provider === "chat"
+        ? await request("auth/begin", "POST")
+        : await request(`auth/oauth/${provider}/authorize`, "POST", {});
+    pending = result.requestId ?? result.request_id;
+    try {
+      await openExternal(result.authorizeUrl ?? result.authorize_url);
+      setWaiting(true);
+    } catch (e) {
+      if (pending) {
+        await request("auth/cancel", "POST", {
+          requestId: pending,
+        }).catch(() => {});
+      }
+      pending = null;
+      throw e;
+    }
+  };
+  const enabledOauthChannels = CN_OAUTH_PROVIDERS.filter((provider) =>
+    channels.includes(provider),
+  );
+  const selectedCnOauth = CN_OAUTH_PROVIDERS.find(
+    (provider) => provider === authChannel && channels.includes(provider),
+  );
   return (
     <div className="modal-backdrop">
       <section
@@ -380,37 +443,84 @@ export function Connections({
                     aria-label="验证码渠道"
                     value={otpChannel}
                     disabled={busy}
-                    onChange={(e) => setOtpChannel(e.target.value as "email" | "phone")}
+                    onChange={(e) => {
+                      setOtpChannel(e.target.value as "email" | "phone");
+                      setChallengeId("");
+                      setOtpCode("");
+                    }}
                   >
-                    <option value="email">邮箱</option>
                     <option value="phone">手机</option>
+                    <option value="email">邮箱</option>
                   </select>
                 </label>
-                <label className="form-label">
-                  {otpChannel === "email" ? "邮箱" : "手机号"}
-                  <input
-                    aria-label={otpChannel === "email" ? "登录邮箱" : "登录手机号"}
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                  />
-                </label>
+                {otpChannel === "phone" ? (
+                  <label className="form-label">
+                    手机号
+                    <PhoneDialField
+                      dialCode={dialCode}
+                      onDialCodeChange={setDialCode}
+                      value={phoneNational}
+                      onChange={setPhoneNational}
+                      disabled={busy}
+                      ariaLabel="登录手机号"
+                    />
+                  </label>
+                ) : (
+                  <label className="form-label">
+                    邮箱
+                    <input
+                      aria-label="登录邮箱"
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
+                    />
+                  </label>
+                )}
                 <div className="connection-actions">
                   <button
-                    disabled={busy || !config["ecosystem.url"] || !identifier.trim()}
+                    disabled={
+                      busy ||
+                      otpCooldown > 0 ||
+                      !config["ecosystem.url"] ||
+                      (otpChannel === "phone"
+                        ? !phoneNational.trim()
+                        : !identifier.trim())
+                    }
                     onClick={() =>
                       void operation(async () => {
+                        if (otpChannel === "phone") {
+                          const checked = validatePhoneParts(
+                            dialCode,
+                            phoneNational,
+                          );
+                          if (!checked.ok) {
+                            throw new Error(checked.error ?? "手机号格式错误");
+                          }
+                          const result = await request("auth/code/send", "POST", {
+                            channel: "phone",
+                            dial_code: dialCode,
+                            national_number: phoneNational.trim(),
+                            target: checked.e164,
+                            purpose: "login",
+                          });
+                          setChallengeId(result.challenge_id);
+                          setOtpCode("");
+                          setOtpCooldown(60);
+                          message(`验证码已发送至 ${result.target_masked}`);
+                          return;
+                        }
                         const result = await request("auth/code/send", "POST", {
-                          channel: otpChannel,
+                          channel: "email",
                           target: identifier.trim(),
                           purpose: "login",
                         });
                         setChallengeId(result.challenge_id);
                         setOtpCode("");
+                        setOtpCooldown(60);
                         message(`验证码已发送至 ${result.target_masked}`);
                       })
                     }
                   >
-                    发送验证码
+                    {otpCooldown > 0 ? `重新发送 (${otpCooldown}s)` : "发送验证码"}
                   </button>
                 </div>
                 <label className="form-label">
@@ -433,9 +543,19 @@ export function Connections({
                   }
                   onClick={() =>
                     void operation(async () => {
+                      const target =
+                        otpChannel === "phone"
+                          ? validatePhoneParts(dialCode, phoneNational).e164
+                          : identifier.trim();
                       const result = await request("auth/code/login", "POST", {
                         channel: otpChannel,
-                        target: identifier.trim(),
+                        ...(otpChannel === "phone"
+                          ? {
+                              dial_code: dialCode,
+                              national_number: phoneNational.trim(),
+                            }
+                          : {}),
+                        target,
                         challenge_id: challengeId,
                         code: otpCode.trim(),
                         purpose: "login",
@@ -443,6 +563,7 @@ export function Connections({
                       adoptSession(result.session);
                       setChallengeId("");
                       setOtpCode("");
+                      setOtpCooldown(0);
                       message("验证码登录成功");
                     })
                   }
@@ -451,33 +572,63 @@ export function Connections({
                 </button>
               </>
             )}
+            {selectedCnOauth && (
+              <div className="connection-actions">
+                <button
+                  className="primary oauth-channel-btn"
+                  disabled={busy || waiting || !config["ecosystem.url"]}
+                  onClick={() => void operation(() => startOauth(selectedCnOauth))}
+                >
+                  <img
+                    className="oauth-channel-icon"
+                    src={OAUTH_BRAND_ICONS[selectedCnOauth]}
+                    alt=""
+                    width={20}
+                    height={20}
+                  />
+                  <span>使用{CHANNEL_LABELS[selectedCnOauth]}</span>
+                </button>
+              </div>
+            )}
             <p role="status">
               {unavailable.length
                 ? `暂未启用：${unavailable.map((u) => CHANNEL_LABELS[u.channel] ?? u.channel).join("、")}。当前可用：${channels.map((c) => CHANNEL_LABELS[c] ?? c).join("、")}。`
                 : `当前可用登录方式：${channels.map((c) => CHANNEL_LABELS[c] ?? c).join("、")}。`}
             </p>
-            <button
-              className="primary"
-              disabled={busy || waiting || !config["ecosystem.url"]}
-              onClick={() =>
-                void operation(async () => {
-                  const result = await request("auth/begin", "POST");
-                  pending = result.requestId;
-                  try {
-                    await openExternal(result.authorizeUrl);
-                    setWaiting(true);
-                  } catch (e) {
-                    await request("auth/cancel", "POST", {
-                      requestId: pending,
-                    });
-                    pending = null;
-                    throw e;
-                  }
-                })
-              }
-            >
-              使用 BGSSAI Chat 授权登录
-            </button>
+            <div className="oauth-channel-grid">
+              <button
+                className="primary oauth-channel-btn"
+                disabled={busy || waiting || !config["ecosystem.url"]}
+                onClick={() => void operation(() => startOauth("chat"))}
+              >
+                <img
+                  className="oauth-channel-icon"
+                  src={OAUTH_BRAND_ICONS.chat}
+                  alt=""
+                  width={20}
+                  height={20}
+                />
+                <span>使用 BGSSAI Chat 授权登录</span>
+              </button>
+              {enabledOauthChannels.map((provider) => (
+                <button
+                  key={provider}
+                  type="button"
+                  className="oauth-channel-btn"
+                  disabled={busy || waiting || !config["ecosystem.url"]}
+                  onClick={() => void operation(() => startOauth(provider))}
+                >
+                  <img
+                    className="oauth-channel-icon"
+                    src={OAUTH_BRAND_ICONS[provider]}
+                    alt=""
+                    width={20}
+                    height={20}
+                  />
+                  <span>{CHANNEL_LABELS[provider]}</span>
+                </button>
+              ))}
+            </div>
             {(waiting || pending) && (
               <button
                 disabled={busy}

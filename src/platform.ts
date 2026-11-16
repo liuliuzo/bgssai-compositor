@@ -51,10 +51,18 @@ export const routes = new Set([
   "support/outbox",
 ]);
 
+const CN_OAUTH_ORIGINS = [
+  "https://open.weixin.qq.com",
+  "https://open.douyin.com",
+  "https://openapi.baidu.com",
+  "https://openauth.alipay.com",
+  "https://chat.bgssai.cn",
+];
+
 function isAllowedRoute(route: string): boolean {
   const clean = route.split("?")[0];
   if (routes.has(clean)) return true;
-  if (/^auth\/oauth\/(wechat|alipay|douyin|baidu)\/(authorize|callback)$/.test(clean))
+  if (/^auth\/oauth\/(wechat|alipay|douyin|baidu|chat|bgssai)\/(authorize|callback)$/.test(clean))
     return true;
   if (/^support\/tickets\/[A-Za-z0-9_-]+\/messages$/.test(clean)) return true;
   return false;
@@ -152,13 +160,16 @@ export async function openExternal(url: string) {
   if (window.desktop) return window.desktop.openExternal(url);
   const config = await getConfig();
   const origins = [
-    config["chat.issuer"],
-    config["support.url"],
-    config["downloads.url"],
-    config["bot.url"],
-  ]
-    .filter(Boolean)
-    .map((value) => new URL(value).origin);
+    ...[
+      config["chat.issuer"],
+      config["support.url"],
+      config["downloads.url"],
+      config["bot.url"],
+    ]
+      .filter(Boolean)
+      .map((value) => new URL(value).origin),
+    ...CN_OAUTH_ORIGINS,
+  ];
   const parsed = new URL(url);
   if (
     parsed.protocol !== "https:" ||

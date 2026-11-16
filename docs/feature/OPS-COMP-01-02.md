@@ -8,15 +8,21 @@
   - `POST /api/auth/register`：支持用户名/邮箱/手机号与密码注册，服务端使用随机盐与密码哈希持久化凭证，不存储明文密码。重复账号返回 409；服务重启后注册唯一性与原密码验证仍有效。
   - `POST /api/auth/login` / `POST /api/auth/login/password`：校验账号密码并签发独立会话令牌；错误密码返回 401。
   - 新会话的 `sync`、`ai`、`bot` 默认均关闭，在线能力必须经用户逐项授权，项目和计费回执按账号隔离。
-- **邮箱与手机号验证码登录暂不可用**：
-  - 真实 SMS/email 发送与校验适配器尚未实现。`POST /api/auth/code/send`、`POST /api/auth/code/login`、`POST /api/auth/code/verify` 全部返回 503。
-  - 不生成验证码、不返回 `code` / `verification_code` / `challenge_id`，也不创建或返回 `token` / `session`；客户端自填或伪造验证码不能登录。
-- **Chat PKCE 保留，国内第三方 OAuth 暂不可用**：
-  - 保留 Chat OIDC + S256 PKCE 授权码流程（`POST /api/auth/begin`、`GET /oauth/callback`、`POST /api/auth/poll`、`POST /api/auth/cancel`）。
-  - `wechat`、`douyin`、`baidu`、`alipay` 尚无真实 OAuth 适配器。四渠道的 `GET/POST /api/auth/oauth/:provider/authorize`、`GET/POST /api/auth/oauth/:provider/callback` 及通用别名 `POST /api/auth/oauth/begin`、`POST /api/auth/oauth/callback` 均返回 503，不生成授权地址、不签发会话。
-  - 伪造 `openid`、`sub`、`user_id`、`code`、`state` 不能建立身份；`GET /oauth/callback` 仅保留给真实 Chat OIDC 换票流程。
-  - `GET /api/auth/channels` 的 `channels` 仅包含 `local`、`chat`，`unavailable` 列出验证码与四个国内 OAuth 渠道；界面禁用未实现通道并显示暂不可用。
-  - 可用登录渠道建立 Compositor 独立会话；`DELETE /api/session` 撤销当前会话、下属 Bot/PAT 令牌及关联的真实 Chat 授权。
+- **手机 / 邮箱验证码登录（真实 SMTP + 腾讯云 SMS 国内/国际分通道）**：
+  - 6 位数字验证码使用 `crypto.randomInt(100000, 1000000)`，同一通道与目标地址发送冷却 60 秒（`429` `OTP_RESEND_TOO_SOON`），失败投递回滚挑战且不锁冷却；单挑战最多 5 次校验。
+  - `POST /api/auth/code/send` 响应仅返回 `challenge_id`、`channel`、`route`、`target_masked`、`cooldown_seconds`、`expires_at`，**永不返回 `code`、`verification_code` 或 `seq`**。
+  - 手机号归一化严格区分国内（`+861[3-9]\d{9}`）与国际非 `+86` E.164（`+[1-9]\d{4,14}`，禁止剥离国际国家码）；前端手机号输入默认 `+86` 并提供可搜索国际区号选择器。
+  - 腾讯云 SMS `SendSms` (`2021-01-11`, `TC3-HMAC-SHA256`) 按 `+86` 与非 `+86` 自动路由至独立国内/国际配置，**国内与国际通道互不回退**；任一通道未启用或缺少 `AppId`/`TemplateId`/`SecretId`/`SecretKey` 时对对应路由 fail-closed 返回 `503`。
+  - 国内通道必须填写 `sign_name`，国际通道 `intl_sign_name` 可选；默认 `endpoint='sms.tencentcloudapi.com'`、`region='ap-guangzhou'`，`sms.tencentcloudapi.com` 拒绝 `ap-singapore`（需 `sms.intl.tencentcloudapi.com`）。
+  - `TemplateParamSet` 严格按 `template_param_count` / `intl_template_param_count` in `{2, 3, 4}` 构造：`2` 为 `[code, minStr]`，`3` 为 `[productLabel, code, minStr]`，`4` 为 `[productLabel, seq, code, minStr]`（`seq` 为 `crypto.randomInt(1000, 10000)` 4 位数字）。
+  - SMTP 邮件投递使用 `nodemailer` 真实发信；未配置或凭据失效时返回 `503`/`502`，响应与日志脱敏，不泄露密码或密钥。
+- **Chat PKCE 与国内四渠道 OAuth（`wechat` / `douyin` / `baidu` / `alipay`）**：
+  - 支持 BGSSAI Chat OIDC + S256 PKCE（默认 `https://chat.bgssai.cn`，`POST /api/auth/begin`、`GET /oauth/callback`、`POST /api/auth/poll`、`POST /api/auth/cancel`）。
+  - 接入国内四渠道真实 OAuth（`wechat`、`douyin`、`baidu`、`alipay` 含 RSA2 签名与 `auth_code` 交换），禁止海外登录通道（`google`、`github`、`gitlab` 等）及 `weibo`。
+  - 渠道配置缺失时对应 `authorize` / `callback` 入口 fail-closed 返回 `503`；伪造 `openid`/`sub`/`user_id`/`code`/`state` 或重放 `state` 均拒绝。
+  - `GET /api/auth/channels` 动态返回可用通道、`unavailable` 列表及 `otp_capabilities`（`email`、`phone_domestic`、`phone_international`）；界面仅展示可用 OAuth 快捷图标按钮，禁用未配置通道并提示暂未启用。
+  - 管理端配置接口（`/api/admin/config/{channels,sms,smtp,oauth}`）读取时将密钥脱敏为 `******`，保存时传入空值或 `******` 保留原密钥。
+  - 有效登录建立 Compositor 独立会话；`DELETE /api/session` 撤销当前会话、下属 Bot/PAT 令牌及关联的 Chat 授权。
 
 ### 1.2 受控 AI 模型目录与区域路由
 - **模型目录接口 (`GET /api/ai/models`)**：

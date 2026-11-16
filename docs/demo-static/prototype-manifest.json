@@ -5,8 +5,8 @@
     "index": "docs/demo-static/index.html",
     "page_flow": "docs/demo-static/PAGE-FLOW.html"
   },
-  "prototype_bundle_digest": "affacc341e2a1c8d5446500a5047ef9f7bfb0ff65632fa8ebc7c25dc021b3a51",
-  "code_contract_digest": "b720a1923089f154353cd0ada409348badec1c4a2b35c65b5496745b2e9d0be0",
+  "prototype_bundle_digest": "147e21d24eba127ea23d7ce75e720ac8aa67600b052178109c2b8438021f3ba6",
+  "code_contract_digest": "b96a9dafa407bc7516bee6b3c705630043f01f22f81cf92b97af4b8ab0019c60",
   "api_endpoints": [
     "/api/auth/oauth",
     "/api/bot",
@@ -15,11 +15,11 @@
   "tracked_code_files": [
     {
       "path": "electron/main.cjs",
-      "sha256": "01b1bedb841455f6fc2ca68d5cb063d83a462f7175a87313c740187cc07632f0"
+      "sha256": "d22ea2bb97057d75153dd2435be09f867a728d78d9c30d15de4cc36cc5c6823f"
     },
     {
       "path": "service/server.mjs",
-      "sha256": "a99685d3ce2a747bc89eadaccbc46d47be6a2674b35700d89cad13e611cb8f23"
+      "sha256": "fce4258ff9b32bbaa3ee549ccc5e3de0fb1dff64ebb6071e96343c25a52343cc"
     },
     {
       "path": "src/App.tsx",
@@ -44,7 +44,7 @@
     },
     {
       "path": "docs/demo-static/index.html",
-      "sha256": "5ed8179a91565eacbfbb8b73a481d250e39e34d6b20e66c6b02afd98b16b3cab",
+      "sha256": "6f58b39a4821588eee1fd45a2340959790c0ae8bae54dcd220c64190158864ad",
       "surface": "index",
       "bound_code_files": [
         "electron/main.cjs",

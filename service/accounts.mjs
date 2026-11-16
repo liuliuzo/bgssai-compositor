@@ -1,6 +1,8 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { DISALLOWED_OAUTH_PROVIDERS } from "./channel-config.mjs";
+import { normalizePhoneForStorage, routePhone } from "./sms.mjs";
 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 
@@ -164,12 +166,16 @@ export function createAccountStore(dataDirectory) {
       user = await readJson(path.join(localUsersDir, `${hash(cleanId)}.json`));
     } catch (error) {
       if (error.code !== "ENOENT") throw fail(503, "账号存储暂不可用");
-      const normalizedPhone = cleanId.replace(/[\s-]/g, "").replace(/^(\+86|0086)/, "");
-      const bound =
-        (await getBinding("email", cleanId)) ??
-        (await getBinding("phone", cleanId)) ??
-        (await getBinding("phone", normalizedPhone)) ??
-        (await getBinding("phone", `+86${normalizedPhone}`));
+      const routed = routePhone(cleanId);
+      let bound = await getBinding("email", cleanId);
+      if (!bound && routed) {
+        bound =
+          (await getBinding("phone", routed.storage)) ??
+          (routed.route === "MAINLAND" ? await getBinding("phone", routed.e164) : null);
+      }
+      if (!bound) {
+        bound = await getBinding("phone", cleanId);
+      }
       if (!bound?.account_id) return null;
       const allBindings = await listBindings(bound.account_id);
       const pwBinding = allBindings.find((b) => b.provider === "password" && b.provider_uid);
@@ -244,8 +250,16 @@ export function createAccountStore(dataDirectory) {
 
   async function ensureOtpAccount({ channel, target, name }) {
     const provider = channel === "phone" ? "phone" : "email";
-    const providerUid = target.trim().toLowerCase();
-    const binding = await getBinding(provider, providerUid);
+    const routed = provider === "phone" ? routePhone(target) : null;
+    const providerUid =
+      provider === "phone"
+        ? routed?.storage ?? String(target ?? "").trim()
+        : String(target ?? "").trim().toLowerCase();
+    const binding =
+      (await getBinding(provider, providerUid)) ??
+      (provider === "phone" && routed?.route === "MAINLAND"
+        ? await getBinding("phone", routed.e164)
+        : null);
     if (binding) {
       const account = await loadAccount(binding.account_id);
       if (account?.deleted_at) throw fail(403, "账号已注销，无法登录");
@@ -271,18 +285,30 @@ export function createAccountStore(dataDirectory) {
     if (!reauthOk) throw fail(401, "敏感变更需重新验证身份");
     const account = await loadAccount(accountId);
     if (!account || account.deleted_at) throw fail(403, "账号不可用");
-    const uid = String(provider_uid).trim().toLowerCase();
-    if (!provider || !uid) throw fail(400, "绑定参数无效");
-    const existing = await getBinding(provider, uid);
+    const rawProvider = String(provider ?? "").trim().toLowerCase();
+    if (DISALLOWED_OAUTH_PROVIDERS.has(rawProvider)) {
+      throw fail(400, "不支持的登录绑定渠道");
+    }
+    const cleanProvider = rawProvider === "bgssai" ? "chat" : rawProvider;
+    let uid = String(provider_uid ?? "").trim();
+    if (cleanProvider === "phone") {
+      const normalized = normalizePhoneForStorage(uid);
+      if (!normalized) throw fail(400, "手机号无效");
+      uid = normalized;
+    } else if (cleanProvider === "email" || cleanProvider === "password") {
+      uid = uid.toLowerCase();
+    }
+    if (!cleanProvider || !uid) throw fail(400, "绑定参数无效");
+    const existing = await getBinding(cleanProvider, uid);
     if (existing && existing.account_id !== accountId) {
       throw fail(409, "该登录方式已绑定其他账号");
     }
     if (existing && existing.account_id === accountId) return existing;
     const binding = {
-      provider,
+      provider: cleanProvider,
       provider_uid: uid,
       account_id: accountId,
-      sub: sub ?? `${provider}:${uid}`,
+      sub: sub ?? `${cleanProvider}:${uid}`,
       created_at: Date.now(),
     };
     await putBinding(binding, { exclusive: true });
@@ -293,11 +319,18 @@ export function createAccountStore(dataDirectory) {
     if (!reauthOk) throw fail(401, "敏感变更需重新验证身份");
     const bindings = await listBindings(accountId);
     if (bindings.length <= 1) throw fail(400, "至少保留一种可用的登录方式");
-    const uid = String(providerUid).trim().toLowerCase();
-    const target = bindings.find((b) => b.provider === provider && b.provider_uid === uid);
+    const rawProvider = String(provider ?? "").trim().toLowerCase();
+    const cleanProvider = rawProvider === "bgssai" ? "chat" : rawProvider;
+    let uid = String(providerUid ?? "").trim();
+    if (cleanProvider === "phone") {
+      uid = normalizePhoneForStorage(uid) ?? uid;
+    } else if (cleanProvider === "email" || cleanProvider === "password") {
+      uid = uid.toLowerCase();
+    }
+    const target = bindings.find((b) => b.provider === cleanProvider && b.provider_uid === uid);
     if (!target) throw fail(404, "未找到该登录方式绑定");
-    await removeBinding(provider, uid);
-    if (provider === "password") {
+    await removeBinding(cleanProvider, uid);
+    if (cleanProvider === "password") {
       try {
         await unlink(path.join(localUsersDir, `${hash(uid)}.json`));
       } catch {
@@ -374,7 +407,11 @@ export function createAccountStore(dataDirectory) {
   }
 
   async function ensureOauthAccount({ provider, sub, name }) {
-    const cleanProvider = String(provider || "chat").trim().toLowerCase();
+    const rawProvider = String(provider || "chat").trim().toLowerCase();
+    if (DISALLOWED_OAUTH_PROVIDERS.has(rawProvider)) {
+      throw fail(400, "不支持该第三方登录渠道");
+    }
+    const cleanProvider = rawProvider === "bgssai" ? "chat" : rawProvider;
     const cleanUid = String(sub || "").trim();
     const binding = await getBinding(cleanProvider, cleanUid);
     if (binding) {

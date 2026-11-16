@@ -73,11 +73,18 @@ const connectionRoutes = new Set([
   "support/tickets",
   "support/outbox",
 ]);
+const CN_OAUTH_ORIGINS = [
+  "https://open.weixin.qq.com",
+  "https://open.douyin.com",
+  "https://openapi.baidu.com",
+  "https://openauth.alipay.com",
+  "https://chat.bgssai.cn",
+];
 function isAllowedConnectionRoute(route) {
   if (typeof route !== "string") return false;
   const clean = route.split("?")[0];
   if (connectionRoutes.has(clean)) return true;
-  if (/^auth\/oauth\/(wechat|alipay|douyin|baidu)\/(authorize|callback)$/.test(clean))
+  if (/^auth\/oauth\/(wechat|alipay|douyin|baidu|chat|bgssai)\/(authorize|callback)$/.test(clean))
     return true;
   if (/^support\/tickets\/[A-Za-z0-9_-]+\/messages$/.test(clean)) return true;
   return false;
@@ -192,12 +199,6 @@ function setupIPC() {
         signal: AbortSignal.timeout(30000),
         credentials: "omit",
       });
-      if (!response.ok)
-        throw new Error(
-          response.status === 412
-            ? "云端版本冲突，请先下载云端项目"
-            : `连接失败（${response.status}）`,
-        );
       const chunks = [];
       let size = 0;
       for await (const chunk of response.body) {
@@ -205,15 +206,33 @@ function setupIPC() {
         if (size > MAX_BYTES * 2 + 16384) throw new Error("服务响应过大");
         chunks.push(chunk);
       }
-      return JSON.parse(Buffer.concat(chunks));
+      const rawBody = Buffer.concat(chunks);
+      if (!response.ok) {
+        let serverError = "";
+        try {
+          const parsed = JSON.parse(rawBody);
+          if (typeof parsed?.error === "string") serverError = parsed.error;
+        } catch {
+          /* ignore non-JSON error */
+        }
+        throw new Error(
+          response.status === 412
+            ? "云端版本冲突，请先下载云端项目"
+            : serverError || `连接失败（${response.status}）`,
+        );
+      }
+      return JSON.parse(rawBody);
     },
   );
   handle("connections:external", async (value) => {
     const url = new URL(value);
-    const origins = ["chat.issuer", "support.url", "downloads.url", "bot.url"]
-      .map((key) => config[key])
-      .filter(Boolean)
-      .map((value) => new URL(value).origin);
+    const origins = [
+      ...["chat.issuer", "support.url", "downloads.url", "bot.url"]
+        .map((key) => config[key])
+        .filter(Boolean)
+        .map((value) => new URL(value).origin),
+      ...CN_OAUTH_ORIGINS,
+    ];
     if (
       url.protocol !== "https:" ||
       url.username ||
