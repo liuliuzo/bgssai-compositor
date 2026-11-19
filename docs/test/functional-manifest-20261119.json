@@ -1,0 +1,105 @@
+{
+  "schema": 1,
+  "date": "2026-11-19",
+  "repo": "liuliuzo/bgssai-compositor",
+  "local_repo": "bgssai-compositor",
+  "baseline": "183f197a80d5be2f385ed4250a90b183bb587bfc",
+  "source_sha": "183f197a80d5be2f385ed4250a90b183bb587bfc",
+  "requirement_file": "docs/feature/functional-test-supplement-20261119.md",
+  "requirements": [
+    {
+      "id": "REQ-COMPOSITOR-20261119-01",
+      "title": "PSD 图层导入与转换报告",
+      "cases": [
+        "TC-COMPOSITOR-20261119-01-P",
+        "TC-COMPOSITOR-20261119-01-N"
+      ],
+      "file": "docs/test/TC-develop-20261119.md"
+    },
+    {
+      "id": "REQ-COMPOSITOR-20261119-02",
+      "title": "项目保存与图层历史",
+      "cases": [
+        "TC-COMPOSITOR-20261119-02-P",
+        "TC-COMPOSITOR-20261119-02-N"
+      ],
+      "file": "docs/test/TC-develop-20261119.md"
+    }
+  ],
+  "cases": [
+    {
+      "id": "TC-COMPOSITOR-20261119-01-P",
+      "requirement": "REQ-COMPOSITOR-20261119-01",
+      "file": "TC-develop-20261119.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-20261119-01-N",
+      "requirement": "REQ-COMPOSITOR-20261119-01",
+      "file": "TC-develop-20261119.md",
+      "status": "待测",
+      "kind": "N"
+    },
+    {
+      "id": "TC-COMPOSITOR-20261119-02-P",
+      "requirement": "REQ-COMPOSITOR-20261119-02",
+      "file": "TC-develop-20261119.md",
+      "status": "待测",
+      "kind": "P"
+    },
+    {
+      "id": "TC-COMPOSITOR-20261119-02-N",
+      "requirement": "REQ-COMPOSITOR-20261119-02",
+      "file": "TC-develop-20261119.md",
+      "status": "待测",
+      "kind": "N"
+    }
+  ],
+  "coverage": [
+    {
+      "source": "tests/psd-import.test.ts",
+      "title": "PSD 图层导入与转换报告",
+      "classification": "当前版本功能验收",
+      "requirements": [
+        "REQ-COMPOSITOR-20261119-01"
+      ],
+      "cases": [
+        "TC-COMPOSITOR-20261119-01-P",
+        "TC-COMPOSITOR-20261119-01-N"
+      ],
+      "legacy": []
+    },
+    {
+      "source": "tests/project.test.ts",
+      "title": "项目保存与图层历史",
+      "classification": "当前版本功能验收",
+      "requirements": [
+        "REQ-COMPOSITOR-20261119-02"
+      ],
+      "cases": [
+        "TC-COMPOSITOR-20261119-02-P",
+        "TC-COMPOSITOR-20261119-02-N"
+      ],
+      "legacy": []
+    }
+  ],
+  "historical_suites": [],
+  "design_only": true,
+  "progress": {
+    "待测": 4,
+    "通过": 0,
+    "失败": 0,
+    "阻塞": 0,
+    "不适用": 0
+  },
+  "suite_counts": {
+    "TC-develop-20261119.md": {
+      "待测": 4,
+      "通过": 0,
+      "失败": 0,
+      "阻塞": 0,
+      "不适用": 0
+    }
+  }
+}

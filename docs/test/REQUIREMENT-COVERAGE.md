@@ -26,3 +26,5 @@
 | --- | --- |
 | [docs/feature/reference-ux-hardening-20261019.md](../../docs/feature/reference-ux-hardening-20261019.md) | TC-COMPOSITOR-SCAN-20261102-001-P, TC-COMPOSITOR-SCAN-20261102-001-N, TC-COMPOSITOR-SCAN-20261102-002-P, TC-COMPOSITOR-SCAN-20261102-002-N |
 | [docs/feature/model-price-receipts.md](../../docs/feature/model-price-receipts.md) | TC-COMPOSITOR-SCAN-20261102-003-P, TC-COMPOSITOR-SCAN-20261102-003-N |
+
+- [2026-11-19 需求与案例](TRACEABILITY-20261119.md) · 2 项需求，4 个用例。
